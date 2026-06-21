@@ -1,3 +1,5 @@
+; Repeatedly output "Hello" and "there." using a DOS system call.
+
 org 0x100
 
 start:

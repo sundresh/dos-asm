@@ -1,3 +1,5 @@
+; Output "Hello" via direct hardware access, move hardware cursor, call BIOS to wait 2 seconds.
+
 org 0x100
 
 

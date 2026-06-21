@@ -1,3 +1,6 @@
+; Clear screen and output "Hello" followed by a hexadecimal integer, all via direct hardware
+; access, move hardware cursor, update BIOS cursor position, call BIOS to wait 2 seconds.
+
 org 0x100
 
 

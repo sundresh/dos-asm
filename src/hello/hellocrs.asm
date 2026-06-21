@@ -1,3 +1,5 @@
+; Output "Hello" using a DOS system call, move hardware text cursor, call BIOS to wait 2 seconds.
+
 org 0x100
 
 start:
