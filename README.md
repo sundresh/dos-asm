@@ -5,14 +5,26 @@
 1. Install FreeDOS on a 10GB partition, with NASM and anything else
 2. Install Ubuntu Linux, then install packages:
    ```bash
-   apt install git gnome-tweaks joe linux-firmware nasm
+   apt install git gnome-tweaks joe linux-firmware mtools nasm qemu-system-x86
    ```
 3. Configure `grub` to dual boot:
    * In `/etc/default/grub`, ensure `GRUB_TIMEOUT_STYLE=menu` and `GRUB_TIMEOUT=5`
    * In `/etc/grub.d`, `mv 30_os-prober 15_os-prober` to move FreeDOS earlier
    * Run `sudo grub-mkconfig && sudo update-grub`
 
-TODO: `qemu` for testing under Linux without rebooting into DOS
+4. Configure sparse `qemu` image: Download and unzip the FreeDOS Live CD from `freedos.org` in
+   `~/Downloads`, then run:
+   ```bash
+   mkdir -p ~/Documents/VM
+   qemu-img create -f qcow2 ~/Documents/VM/freedos.qcow2 1G
+   qemu-system-x86_64 -hda ~/Documents/VM/freedos.qcow2 -cdrom ~/Downloads/FD14LIVE.iso -boot d -enable-kvm -nic none
+   ```
+
+## Using `qemu`
+
+Once the host is set up, you can use `run_qemu_with_files.sh` to copy some files (passed on the
+command line) into a temporary 1.44MB floppy disk image file and run `qemu` with teh FreeDOS
+filesystem created above as `C:` and the flopp disk image as `A:`.
 
 ## System documentation
 
