@@ -7,6 +7,7 @@ org 0x100
 GRAPHICS_SEGMENT		equ 0xb800
 TEXT_STYLE_WHITE_ON_BLACK	equ 0x07
 TWO_SECONDS_IN_MICROSECONDS	equ 0x001e8480
+NUM_TEXT_CHARS_ON_SCREEN	equ 80 * 25
 
 INT_BIOS_SET_CURSOR_POS_INT	equ 0x10
 INT_BIOS_SET_CURSOR_POS_AH	equ 0x02
@@ -46,54 +47,47 @@ start:
 
 
 clear_screen:
-	push	eax
-	push	cx
 	push	di
 	push	es
 	
 	; Set es to point to the text video buffer
-	mov	di, GRAPHICS_SEGMENT
-	mov	es, di
+	mov	cx, GRAPHICS_SEGMENT
+	mov	es, cx
 
 	; Set the text video buffer to all null chars with style non-bold white on black
-	mov	di, 0
+	xor	di, di
 	mov	eax, (TEXT_STYLE_WHITE_ON_BLACK << 24) | (TEXT_STYLE_WHITE_ON_BLACK << 8)
-	mov	cx, 1000
+	mov	cx, (NUM_TEXT_CHARS_ON_SCREEN*(1+1)/4)	; (per char: 1 char byte + 1 style byte) / 4 bytes eax
 	rep	stosd
 
 	pop	es
 	pop	di
-	pop	cx
-	pop	eax
 	ret
 
 
 print_hex_u16:
 	; ax = number to print
-
-	push	bp
 	push	bx
-	mov	bp, sp
 
-	mov	bx, ax
+	mov	cx, ax
 
-	; Convert nibbles in bx to chars
-	mov	al, bh
+	; Convert nibbles in cx to chars
+	mov	al, ch
 	shr	al, 4
 	call	bits_to_hex_char
 	mov	[num_str_buf], al
 
-	mov	al, bh
+	mov	al, ch
 	and	al, 0x0f
 	call	bits_to_hex_char
 	mov	[num_str_buf+1], al
 
-	mov	al, bl
+	mov	al, cl
 	shr	al, 4
 	call	bits_to_hex_char
 	mov	[num_str_buf+2], al
 
-	mov	al, bl
+	mov	al, cl
 	and	al, 0x0f
 	call	bits_to_hex_char
 	mov	[num_str_buf+3], al
@@ -104,7 +98,6 @@ print_hex_u16:
 	call	print_string
 
 	pop	bx
-	pop	bp
 	ret
 
 
@@ -119,6 +112,7 @@ bits_to_hex_char:
 .letter:
 	and	al, 0x0f
 	add	al, ('a' - 0x0a)
+
 	ret
 
 
@@ -126,8 +120,6 @@ print_dec_u16:
 	; ax = number to print
 
 	push	bx
-	push	cx
-	push	dx
 
 	; Start bx at the end of the string space
 	mov	bx, num_str_buf+5
@@ -148,8 +140,6 @@ print_dec_u16:
 	sub	ax, bx
 	call	print_string
 
-	pop	dx
-	pop	cx
 	pop	bx
 	ret
 
@@ -158,7 +148,6 @@ print_string:
 	; ax = string length
 	; ds:bx = string contents
 
-	push	cx
 	push	di
 	push	es
 
@@ -169,10 +158,10 @@ print_string:
 	; Set di to point to the first char to write to
 	mov	di, [cursor_position]
 
-	; Clamp string length to not go past end of text video buffer (2,000 chars)
+	; Clamp string length to not go past end of text video buffer
 	push	di
 	add	di, ax
-	sub	di, 2000
+	sub	di, NUM_TEXT_CHARS_ON_SCREEN
 	jbe	.after_ax_is_clamped
 	sub	ax, di
 .after_ax_is_clamped:
@@ -180,13 +169,13 @@ print_string:
 	shl	di, 1
 
 	; Write characters with style non-bold white on black
-	mov	ch, TEXT_STYLE_WHITE_ON_BLACK
+	mov	dh, TEXT_STYLE_WHITE_ON_BLACK
 .loop:
 	cmp	ax, 0
 	je	.loop_done
 
-	mov	cl, [bx]
-	mov	[es:di], cx
+	mov	dl, [bx]
+	mov	[es:di], dx
 
 	dec	ax
 	inc	bx
@@ -201,7 +190,6 @@ print_string:
 
 	pop	es
 	pop	di
-	pop	cx
 
 	ret
 
@@ -209,27 +197,27 @@ print_string:
 print_char:
 	; al = character to print
 
-	push	di
+	push	bx
 	push	es
 
 	; Set es to point to the text video buffer
-	mov	di, GRAPHICS_SEGMENT
-	mov	es, di
+	mov	bx, GRAPHICS_SEGMENT
+	mov	es, bx
 
-	; Set di to point to the first char to write to
-	mov	di, [cursor_position]
-	shl	di, 1
+	; Set bx to point to the first char to write to
+	mov	bx, [cursor_position]
+	shl	bx, 1
 
 	; Write character with style non-bold white on black
-	mov	[es:di], al
-	mov	[es:di+1], TEXT_STYLE_WHITE_ON_BLACK
+	mov	[es:bx], al
+	mov	[es:bx+1], TEXT_STYLE_WHITE_ON_BLACK
 
 	; Move cursor
 	inc	[cursor_position]
 	call	update_hardware_cursor_position
 
 	pop	es
-	pop	di
+	pop	bx
 
 	ret
 
@@ -240,12 +228,6 @@ move_cursor_to_next_line:
 
 
 update_hardware_cursor_position:
-	; no args
-
-	push	ax
-	push	cx
-	push	dx
-
 	mov	cx, [cursor_position]
 
 	; Set low byte of cursor position
@@ -264,17 +246,10 @@ update_hardware_cursor_position:
 	mov	al, ch
 	out	dx, al
 
-	pop	dx
-	pop	cx
-	pop	ax
 	ret
 
 
 load_hardware_cursor_position:
-	push	ax
-	push	cx
-	push	dx
-
 	; Load low byte of cursor position
 	mov	dx, 0x3d4
 	mov	al, 0x0f
@@ -293,16 +268,11 @@ load_hardware_cursor_position:
 
 	mov	[cursor_position], cx
 
-	pop	dx
-	pop	cx
-	pop	ax
 	ret
 
 
 update_bios_cursor_position:
-	push	ax
 	push	bx
-	push	dx
 
 	mov	ax, [cursor_position]
 	mov	bl, 80
@@ -311,13 +281,11 @@ update_bios_cursor_position:
 
 	mov	dh, al
 	mov	dl, ah
-	mov	bh, 0
+	xor	bh, bh
 	mov	ah, INT_BIOS_SET_CURSOR_POS_AH
 	int	INT_BIOS_SET_CURSOR_POS_INT
 
-	pop	dx
 	pop	bx
-	pop	ax
 	ret
 
 

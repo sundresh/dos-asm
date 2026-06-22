@@ -3,55 +3,64 @@
 org 0x100
 
 
+GRAPHICS_SEGMENT		equ 0xb800
+TEXT_STYLE_WHITE_ON_BLACK	equ 0x07
+TWO_SECONDS_IN_MICROSECONDS	equ 0x001e8480
+NUM_TEXT_CHARS_ON_SCREEN	equ 2000	; Assumes 80x25
+
+INT_BIOS_WAIT_INT		equ 0x15
+INT_BIOS_WAIT_AH		equ 0x86
+INT_DOS_EXIT_INT		equ 0x21
+INT_DOS_EXIT_AH			equ 0x00
+
+
 start:
-	mov	ax, 5
+	mov	ax, HELLO_LEN
 	mov	bx, hello
 	call	print_string
 
 	; Wait two seconds (2M microseconds)
-	mov	ah, 0x86
-	mov	al, 0
-	mov	cx, 0x001e
-	mov	dx, 0x8480
-	int	0x15
+	mov	cx, (TWO_SECONDS_IN_MICROSECONDS >> 16)
+	mov	dx, (TWO_SECONDS_IN_MICROSECONDS & 0xffff)
+	mov	ah, INT_BIOS_WAIT_AH
+	int	INT_BIOS_WAIT_INT
 
-	mov	ah, 0x00
-	int	0x21
+	mov	ah, INT_DOS_EXIT_AH
+	int	INT_DOS_EXIT_INT
 
 
 print_string:
 	; ax = string length
 	; ds:bx = string contents
 
-	push	cx
 	push	di
-	push	gs
+	push	es
 
-	; Set gs to point to the text video buffer
-	mov	di, 0xb800
-	mov	gs, di
+	; Set es to point to the text video buffer
+	mov	di, GRAPHICS_SEGMENT
+	mov	es, di
 
 	; Set di to point to the first char to write to
 	mov	di, [cursor_position]
 
-	; Clamp string length to not go past end of text video buffer (2,000 chars)
+	; Clamp string length to not go past end of text video buffer
 	push	di
 	add	di, ax
-	sub	di, 2000
+	sub	di, NUM_TEXT_CHARS_ON_SCREEN
 	jbe	.after_ax_is_clamped
 	sub	ax, di
 .after_ax_is_clamped:
 	pop	di
 	shl	di, 1
 
-	; Write characters with style 0x07
+	; Write characters with style non-bold white on black
+	mov	dh, TEXT_STYLE_WHITE_ON_BLACK
 .loop:
-	cmp	ax, 0
-	je	.loop_done
+	test	ax, ax
+	jz	.loop_done
 
-	mov	cx, [bx]
-	mov	[gs:di], cx
-	mov	[gs:di+1], 0x07
+	mov	dl, [bx]
+	mov	[es:di], dx
 
 	dec	ax
 	inc	bx
@@ -64,20 +73,13 @@ print_string:
 	mov	[cursor_position], di
 	call	update_hardware_cursor_position
 
-	pop	gs
+	pop	es
 	pop	di
-	pop	cx
 
 	ret
 
 
 update_hardware_cursor_position:
-	; no args
-
-	push	ax
-	push	cx
-	push	dx
-
 	mov	cx, [cursor_position]
 
 	; Set low byte of cursor position
@@ -96,14 +98,9 @@ update_hardware_cursor_position:
 	mov	al, ch
 	out	dx, al
 
-	pop	dx
-	pop	cx
-	pop	ax
 	ret
 
 
-cursor_position:
-	dw	0x0000
-
-hello:
-	db	`Hello`
+cursor_position		dw	0x0000
+hello			db	`Hello`
+HELLO_LEN		equ	$ - hello

@@ -32,6 +32,11 @@ filesystem created above as `C:` and the flopp disk image as `A:`.
 * Ralf Brown's Interrupt List
 * NASM documnetation (includes a text version, but note it's 1.1 MB)
 
+## Calling convention
+
+We'll use the convention that `ax`, `cx` and `dx` are caller-saved, while the rest of the registers
+are callee-saved. Function arguments will also be passed in these registers a far as possible.
+
 ## Future ideas
 
 Possibly separate the development workstation from the DOS host. To avoid DOS networking hassles,
