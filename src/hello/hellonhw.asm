@@ -4,8 +4,10 @@
 org 0x100
 
 
-TWO_SECONDS_IN_MICROSECONDS	equ 0x001e8480
 GRAPHICS_SEGMENT		equ 0xb800
+TEXT_STYLE_WHITE_ON_BLACK	equ 0x07
+TWO_SECONDS_IN_MICROSECONDS	equ 0x001e8480
+
 INT_BIOS_SET_CURSOR_POS_INT	equ 0x10
 INT_BIOS_SET_CURSOR_POS_AH	equ 0x02
 INT_BIOS_WAIT_INT		equ 0x15
@@ -24,6 +26,12 @@ start:
 
 	mov	ax, 0x7ec4	; Just an arbitrary hexadecimal number to display
 	call	print_hex_u16
+
+	mov	ax, ' '
+	call	print_char
+
+	mov	ax, 386		; Just an arbitrary decimal number to display
+	call	print_dec_u16
 
 	call	update_bios_cursor_position
 
@@ -47,9 +55,9 @@ clear_screen:
 	mov	di, GRAPHICS_SEGMENT
 	mov	es, di
 
-	; Set the text video buffer to all null chars with style 0x07 (non-bold white on black)
+	; Set the text video buffer to all null chars with style non-bold white on black
 	mov	di, 0
-	mov	eax, 0x07000700
+	mov	eax, (TEXT_STYLE_WHITE_ON_BLACK << 24) | (TEXT_STYLE_WHITE_ON_BLACK << 8)
 	mov	cx, 1000
 	rep	stosd
 
@@ -65,7 +73,6 @@ print_hex_u16:
 
 	push	bp
 	push	bx
-	sub	sp, 4			; Space for string
 	mov	bp, sp
 
 	mov	bx, ax
@@ -74,29 +81,28 @@ print_hex_u16:
 	mov	al, bh
 	shr	al, 4
 	call	bits_to_hex_char
-	mov	[ss:bp], al
+	mov	[num_str_buf], al
 
 	mov	al, bh
 	and	al, 0x0f
 	call	bits_to_hex_char
-	mov	[ss:bp+1], al
+	mov	[num_str_buf+1], al
 
 	mov	al, bl
 	shr	al, 4
 	call	bits_to_hex_char
-	mov	[ss:bp+2], al
+	mov	[num_str_buf+2], al
 
 	mov	al, bl
 	and	al, 0x0f
 	call	bits_to_hex_char
-	mov	[ss:bp+3], al
+	mov	[num_str_buf+3], al
 
 	; Print string
 	mov	ax, 4
-	mov	bx, bp
+	mov	bx, num_str_buf
 	call	print_string
 
-	add	sp, 4
 	pop	bx
 	pop	bp
 	ret
@@ -116,17 +122,49 @@ bits_to_hex_char:
 	ret
 
 
+print_dec_u16:
+	; ax = number to print
+
+	push	bx
+	push	cx
+	push	dx
+
+	; Start bx at the end of the string space
+	mov	bx, num_str_buf+5
+
+	; Fill in characters of the string from least to most significant
+	mov	cx, 10
+.loop:
+	xor	dx, dx
+	div	cx
+	add	dl, '0'
+	dec	bx
+	mov	[bx], dl
+	test	ax, ax
+	jnz	.loop
+
+	; Print string
+	mov	ax, num_str_buf+5
+	sub	ax, bx
+	call	print_string
+
+	pop	dx
+	pop	cx
+	pop	bx
+	ret
+
+
 print_string:
 	; ax = string length
 	; ds:bx = string contents
 
 	push	cx
 	push	di
-	push	gs
+	push	es
 
-	; Set gs to point to the text video buffer
+	; Set es to point to the text video buffer
 	mov	di, GRAPHICS_SEGMENT
-	mov	gs, di
+	mov	es, di
 
 	; Set di to point to the first char to write to
 	mov	di, [cursor_position]
@@ -141,14 +179,14 @@ print_string:
 	pop	di
 	shl	di, 1
 
-	; Write characters with style 0x07
+	; Write characters with style non-bold white on black
+	mov	ch, TEXT_STYLE_WHITE_ON_BLACK
 .loop:
 	cmp	ax, 0
 	je	.loop_done
 
-	mov	cx, [bx]
-	mov	[gs:di], cx
-	mov	[gs:di+1], 0x07
+	mov	cl, [bx]
+	mov	[es:di], cx
 
 	dec	ax
 	inc	bx
@@ -161,10 +199,43 @@ print_string:
 	mov	[cursor_position], di
 	call	update_hardware_cursor_position
 
-	pop	gs
+	pop	es
 	pop	di
 	pop	cx
 
+	ret
+
+
+print_char:
+	; al = character to print
+
+	push	di
+	push	es
+
+	; Set es to point to the text video buffer
+	mov	di, GRAPHICS_SEGMENT
+	mov	es, di
+
+	; Set di to point to the first char to write to
+	mov	di, [cursor_position]
+	shl	di, 1
+
+	; Write character with style non-bold white on black
+	mov	[es:di], al
+	mov	[es:di+1], TEXT_STYLE_WHITE_ON_BLACK
+
+	; Move cursor
+	inc	[cursor_position]
+	call	update_hardware_cursor_position
+
+	pop	es
+	pop	di
+
+	ret
+
+
+move_cursor_to_next_line:
+	; TODO
 	ret
 
 
@@ -253,3 +324,7 @@ update_bios_cursor_position:
 cursor_position		dw	0x0000
 hello			db	`Hello 0x`
 HELLO_LEN		equ	$ - hello
+; num_str_buf is reserved in data space since print_string doesn't take a far pointer tha could be
+; used to locate a temporary string on the stack.
+NUM_STR_BUF_LEN		equ	16
+num_str_buf		resb	NUM_STR_BUF_LEN
