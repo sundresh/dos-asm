@@ -16,13 +16,16 @@ INT_BIOS_WAIT_AH		equ 0x86
 INT_DOS_EXIT_INT		equ 0x21
 INT_DOS_EXIT_AH			equ 0x00
 
+CR0_PE_BIT			equ 1
+CR0_PG_BIT			equ 1 << 31
+
 
 start:
 	;call	load_hardware_cursor_position
 	call	clear_screen
 
-	mov	ax, HELLO_LEN
-	mov	bx, hello
+	mov	ax, HELLO_STR_LEN
+	mov	bx, hello_str
 	call	print_string
 
 	mov	ax, 0x7ec4	; Just an arbitrary hexadecimal number to display
@@ -33,6 +36,26 @@ start:
 
 	mov	ax, 386		; Just an arbitrary decimal number to display
 	call	print_dec_u16
+
+	call	move_cursor_to_next_line
+
+	; Check if we're in protected mode, and if so, whether paging is enabled
+	mov	eax, cr0
+	test	eax, CR0_PE_BIT
+	jz	.pe_is_disabled
+	push	eax
+	mov	ax, PE_ENABLED_STR_LEN
+	mov	bx, pe_enabled_str
+	call	print_string
+	call	move_cursor_to_next_line
+	pop	eax
+	test	eax, CR0_PG_BIT
+	jz	.pe_is_disabled
+	mov	ax, PG_ENABLED_STR_LEN
+	mov	bx, pg_enabled_str
+	call	print_string
+	call	move_cursor_to_next_line
+.pe_is_disabled:
 
 	call	update_bios_cursor_position
 
@@ -223,7 +246,21 @@ print_char:
 
 
 move_cursor_to_next_line:
-	; TODO
+	; Get row
+	mov	ax, [cursor_position]
+	mov	cl, 80
+	div	cl
+	; Next row
+	inc	al
+	cmp	al, 25
+	jb	.set_row
+	mov	al, 24
+.set_row:
+	; Set position
+	mul	cl
+	mov	[cursor_position], ax
+
+	call	update_hardware_cursor_position
 	ret
 
 
@@ -290,9 +327,13 @@ update_bios_cursor_position:
 
 
 cursor_position		dw	0x0000
-hello			db	`Hello 0x`
-HELLO_LEN		equ	$ - hello
+hello_str		db	"Hello 0x"
+HELLO_STR_LEN		equ	$ - hello_str
+pe_enabled_str		db	"Protection enabled"
+PE_ENABLED_STR_LEN	equ	$ - pe_enabled_str
+pg_enabled_str		db	"Paging enabled"
+PG_ENABLED_STR_LEN	equ	$ - pg_enabled_str
 ; num_str_buf is reserved in data space since print_string doesn't take a far pointer tha could be
 ; used to locate a temporary string on the stack.
 NUM_STR_BUF_LEN		equ	16
-num_str_buf		resb	NUM_STR_BUF_LEN
+num_str_buf		times	NUM_STR_BUF_LEN db 0
