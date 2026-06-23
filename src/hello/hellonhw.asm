@@ -19,6 +19,8 @@ INT_DOS_EXIT_AH			equ 0x00
 CR0_PE_BIT			equ 1
 CR0_PG_BIT			equ 1 << 31
 
+EFLAGS_VM_BIT			equ 1 << 17
+
 
 start:
 	;call	load_hardware_cursor_position
@@ -42,7 +44,7 @@ start:
 	; Check if we're in protected mode, and if so, whether paging is enabled
 	mov	eax, cr0
 	test	eax, CR0_PE_BIT
-	jz	.pe_is_disabled
+	jz	.cr0_checks_done
 	push	eax
 	mov	ax, PE_ENABLED_STR_LEN
 	mov	bx, pe_enabled_str
@@ -50,20 +52,50 @@ start:
 	call	move_cursor_to_next_line
 	pop	eax
 	test	eax, CR0_PG_BIT
-	jz	.pe_is_disabled
+	jz	.cr0_checks_done
 	mov	ax, PG_ENABLED_STR_LEN
 	mov	bx, pg_enabled_str
 	call	print_string
 	call	move_cursor_to_next_line
-.pe_is_disabled:
+.cr0_checks_done:
+
+	; Check if we're in virtual 8086 mode
+	pushfd
+	pop	eax
+	call	print_hex_u16
+	call	move_cursor_to_next_line
+	pushfd
+	pop	eax
+	test	eax, EFLAGS_VM_BIT
+	jz	.eflags_checks_done
+	mov	ax, V86_ENABLED_STR_LEN
+	mov	bx, v86_enabled_str
+	call	print_string
+	call	move_cursor_to_next_line
+.eflags_checks_done:
+
+	; Wait for *two* keyboard scan codes (the first one is the key-up event from pressing
+	; [Enter] to run the program)
+	call	install_interrupt_handlers
+.wait_for_key1:
+	mov	ax, [keyboard_scan_code]
+	cmp	ax, 0
+	je	.wait_for_key1
+	mov	[keyboard_scan_code], 0
+.wait_for_key2:
+	mov	ax, [keyboard_scan_code]
+	cmp	ax, 0
+	je	.wait_for_key2
+	call	move_cursor_to_next_line
+	call	uninstall_interrupt_handlers
 
 	call	update_bios_cursor_position
 
 	; Wait two seconds (2M microseconds)
-	mov	cx, (TWO_SECONDS_IN_MICROSECONDS >> 16)
-	mov	dx, (TWO_SECONDS_IN_MICROSECONDS & 0xffff)
-	mov	ah, INT_BIOS_WAIT_AH
-	int	INT_BIOS_WAIT_INT
+	;mov	cx, (TWO_SECONDS_IN_MICROSECONDS >> 16)
+	;mov	dx, (TWO_SECONDS_IN_MICROSECONDS & 0xffff)
+	;mov	ah, INT_BIOS_WAIT_AH
+	;int	INT_BIOS_WAIT_INT
 
 	mov	ah, INT_DOS_EXIT_AH
 	int	INT_DOS_EXIT_INT
@@ -128,7 +160,7 @@ bits_to_hex_char:
 	; al = input/output
 
 	cmp	al, 0x0a
-	ja	.letter
+	jae	.letter
 .digit:
 	add	al, '0'
 	ret
@@ -254,7 +286,7 @@ move_cursor_to_next_line:
 	inc	al
 	cmp	al, 25
 	jb	.set_row
-	mov	al, 24
+	mov	al, 0
 .set_row:
 	; Set position
 	mul	cl
@@ -326,14 +358,159 @@ update_bios_cursor_position:
 	ret
 
 
-cursor_position		dw	0x0000
+install_interrupt_handlers:
+	push	si
+	push	di
+	push	es
+
+	cli
+
+	; ES := DS (for movsd)
+	mov	di, ds
+	mov	es, di
+
+	; Backup old interrupt vector table
+	mov	si, 0
+	mov	ds, si
+	mov	di, backup_ivt
+	mov	ecx, 256
+	rep	movsd
+
+	; DS := ES
+	mov	di, es
+	mov	ds, di
+
+	; Install new interrupt vector table
+	mov	si, interrupt_handlers.begin
+	mov	di, 0
+	mov	es, di
+.loop:
+	mov	[es:di], si
+	mov	[es:di+2], cs
+	add	si, interrupt_handler_size
+	add	di, 4
+	cmp	di, 256*4
+	jb	.loop
+
+	sti
+
+	pop	es
+	pop	di
+	pop	si
+	ret
+
+
+uninstall_interrupt_handlers:
+	push	si
+	push	di
+	push	es
+
+	cli
+
+	; Restore backup interrupt vector table
+	mov	si, backup_ivt
+	mov	di, 0
+	mov	es, di
+	mov	ecx, 256
+	rep	movsd
+
+	sti
+
+	pop	es
+	pop	di
+	pop	si
+	ret
+
+
+shared_interrupt_handler:
+	push	bx
+	push	cx
+	push	dx
+	push	ds
+
+	; Skip printing timer interrupt (8)
+	cmp	ax, 8
+	je	.exit
+
+	; Consume, print & save scan code for keyboard interrupt (9)
+	cmp	ax, 9
+	jne	.default_interrupt
+.keyboard_interrupt:
+	mov	ax, cs
+	mov	ds, ax		; DS := CS (because this is a .COM file)
+	mov	al, '['
+	call	print_char
+	in	al, 0x60	; Get the buffered keyboard scan code
+	xor	ah, ah
+	mov	[keyboard_scan_code], ax
+	call	print_hex_u16
+	mov	al, ']'
+	call	print_char
+	jmp	.exit
+
+	; Print out any other interrupt
+.default_interrupt:
+	push	ax		; Save interrupt number to print it out later
+	mov	ax, cs
+	mov	ds, ax		; DS := CS (because this is a .COM file)
+	mov	ax, INTERRUPT_NUM_STR_LEN
+	mov	bx, interrupt_num_str
+	call	print_string
+	pop	ax
+	call	print_dec_u16
+	call	move_cursor_to_next_line
+
+
+.exit:
+	mov	al, 0x20
+	out	0xa0, al	; Re-enable the secondary programmable interrupt controller
+	out	0x20, al	; Re-enable the primary programmable interrupt controller
+
+	pop	ds
+	pop	dx
+	pop	cx
+	pop	bx
+	ret
+
+
+interrupt_handlers:
+.begin:
+%assign interrupt_num 0
+%rep 256
+	cli
+	push	ax
+
+	; Use strict to ensure each interrupt handler is the same size
+	mov	ax, strict word interrupt_num
+	call	shared_interrupt_handler
+
+	pop	ax
+	sti
+	iret
+%assign interrupt_num interrupt_num+1
+%endrep
+.end:
+
+interrupt_handler_size	equ	(interrupt_handlers.end - interrupt_handlers.begin)/256
+
+
+cursor_position		dw	0
+keyboard_scan_code	dw	0
+
 hello_str		db	"Hello 0x"
 HELLO_STR_LEN		equ	$ - hello_str
 pe_enabled_str		db	"Protection enabled"
 PE_ENABLED_STR_LEN	equ	$ - pe_enabled_str
 pg_enabled_str		db	"Paging enabled"
 PG_ENABLED_STR_LEN	equ	$ - pg_enabled_str
+v86_enabled_str		db	"Virtual 8086 mode enabled"
+V86_ENABLED_STR_LEN	equ	$ - v86_enabled_str
+interrupt_num_str	db	"Interrupt #"
+INTERRUPT_NUM_STR_LEN	equ	$ - interrupt_num_str
+
 ; num_str_buf is reserved in data space since print_string doesn't take a far pointer tha could be
 ; used to locate a temporary string on the stack.
 NUM_STR_BUF_LEN		equ	16
 num_str_buf		times	NUM_STR_BUF_LEN db 0
+
+backup_ivt		dw	256 dup (0, 0)
