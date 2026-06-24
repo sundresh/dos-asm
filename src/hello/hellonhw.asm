@@ -1,5 +1,7 @@
-; Clear screen and output "Hello" followed by a hexadecimal integer, all via direct hardware
-; access, move hardware cursor, update BIOS cursor position, call BIOS to wait 2 seconds.
+; Clear screen and output "Hello" followed by a hexadecimal integer, move hardware cursor, enter
+; and exit protected mode, update BIOS cursor position, wait for a keypress and then exit to DOS. 
+; Everything except for updating the BIOS cursor position and exiting to DOS is dnoe via direct
+; hardware access, which sets us up to do more in protected mode.
 
 org 0x100
 
@@ -30,7 +32,7 @@ start:
 	mov	bx, hello_str
 	call	print_string
 
-	mov	ax, 0x7ec4	; Just an arbitrary hexadecimal number to display
+	mov	ax, cs
 	call	print_hex_u16
 
 	mov	ax, ' '
@@ -73,6 +75,8 @@ start:
 	call	print_string
 	call	move_cursor_to_next_line
 .eflags_checks_done:
+
+	call	enter32
 
 	; Wait for *two* keyboard scan codes (the first one is the key-up event from pressing
 	; [Enter] to run the program)
@@ -508,9 +512,115 @@ V86_ENABLED_STR_LEN	equ	$ - v86_enabled_str
 interrupt_num_str	db	"Interrupt #"
 INTERRUPT_NUM_STR_LEN	equ	$ - interrupt_num_str
 
-; num_str_buf is reserved in data space since print_string doesn't take a far pointer tha could be
+; num_str_buf is reserved in data space since print_string doesn't take a far pointer that could be
 ; used to locate a temporary string on the stack.
 NUM_STR_BUF_LEN		equ	16
 num_str_buf		times	NUM_STR_BUF_LEN db 0
 
 backup_ivt		dw	256 dup (0, 0)
+
+
+gdtr:
+.limit			dw	gdt.end - gdt
+.base			dd	0
+
+align 8
+gdt:
+.unused_first_descr	dd	0, 0
+.cs32_descr		dd	0x0000ffff, 0x00cf9b00
+.ds32_descr		dd	0x0000ffff, 0x00cf9300
+.cs16_descr:
+.cs16_descr_limit	dw	0xffff
+.cs16_descr_base_15_0	dw	0	; Fill this in at runtime
+.cs16_descr_base_23_16	db	0	; Fill this in at runtime
+.cs16_descr_bits	dw	0x009b
+.cs16_descr_base_31_24	db	0
+.ds16_descr:
+.ds16_descr_limit	dw	0xffff
+.ds16_descr_base_15_0	dw	0	; Fill this in at runtime
+.ds16_descr_base_23_16	db	0	; Fill this in at runtime
+.ds16_descr_bits	dw	0x0093
+.ds16_descr_base_31_24	db	0
+.end:
+
+CS32_SEL		equ	gdt.cs32_descr - gdt
+DS32_SEL		equ	gdt.ds32_descr - gdt
+CS16_SEL		equ	gdt.cs16_descr - gdt
+DS16_SEL		equ	gdt.ds16_descr - gdt
+
+start32_far_ptr:
+.offset			dd	0
+.selector		dw	CS32_SEL
+
+
+enter32:
+	cli
+
+	; Calculate flat address base of CS
+	mov	ebx, cs
+	shl	ebx, 4
+	; Fill in gdt.cs16_descr and gdt.ds16_descr, used when returning to real mode later
+	mov	[gdt.cs16_descr_base_15_0], bx
+	mov	[gdt.ds16_descr_base_15_0], bx
+	mov	ecx, ebx
+	shr	ecx, 16
+	mov	[gdt.cs16_descr_base_23_16], cl
+	mov	[gdt.ds16_descr_base_23_16], cl
+	; Calculate and fill in flat address of start32
+	mov	eax, ebx
+	add	eax, start32
+	mov	[start32_far_ptr.offset], eax
+	; Set up GDT
+	mov	eax, ebx
+	add	eax, gdt
+	mov	[gdtr.base], eax
+	lgdt	[gdtr]
+	; Enable protected mode
+	mov	eax, cr0
+	or	eax, CR0_PE_BIT
+	mov	cr0, eax
+	; Reload CS
+	call	dword far [start32_far_ptr]
+	; Returned to real mode with CS, DS & SS already restored
+
+	sti
+	ret
+
+
+[bits 32]
+; Far call start32 via [start32_far_ptr] when entering protected mode
+start32:
+	; Reload DS & SS
+	mov	ax, DS32_SEL
+	mov	ds, ax
+	mov	ss, ax
+	add	esp, ebx
+	; TODO: Run something useful in protected mode
+.return_to_real_mode:
+	; Reload DS & SS (part 1: switch back to 16-bit while still in protected mode)
+	mov	ax, DS16_SEL
+	mov	ds, ax
+	mov	ss, ax
+	sub	esp, ebx
+	; Reload CS (part 1: switch back to 16-bit while still in protected mode)
+	call	dword .push_ip
+.push_ip:
+	pop	eax
+	add	eax, .cs_is_now_16_bits - .push_ip
+	sub	eax, ebx
+	push	dword CS16_SEL	; retfd below pops 32 bits for CS, discarding the high order 16 bits
+	push	eax
+	retfd
+[bits 16]
+.cs_is_now_16_bits:
+	; Disable protected mode
+	mov	eax, cr0
+	and	eax, ~CR0_PE_BIT
+	mov	cr0, eax
+	; Reload DS & SS (part 2: switch back to the real mode segment)
+	mov	eax, ebx
+	shr	eax, 4
+	mov	ds, ax
+	mov	ss, ax
+	; Reload CS (part 2: switch back to the real mode segment)
+	retfd
