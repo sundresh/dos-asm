@@ -1,16 +1,20 @@
 ; Enter protected mode and output "Hello" via direct hardware access, move the hardware cursor,
 ; then exit to real mode DOS, updating the BIOS cursor position along the way.
 
+CR0_PE_BIT			equ 1
+
 VIDEO_BUFFER			equ 0xb8000
 TEXT_STYLE_WHITE_ON_BLACK	equ 0x07
 NUM_TEXT_CHARS_ON_SCREEN	equ 80 * 25
+CURSOR_POS_INDEX_PORT		equ 0x3d4
+CURSOR_POS_VALUE_PORT		equ CURSOR_POS_INDEX_PORT + 1
+CURSOR_POS_INDEX_HIGH		equ 0x0e
+CURSOR_POS_INDEX_LOW		equ 0x0f
 
 INT_BIOS_SET_CURSOR_POS_INT	equ 0x10
 INT_BIOS_SET_CURSOR_POS_AH	equ 0x02
 INT_DOS_EXIT_INT		equ 0x21
 INT_DOS_EXIT_AH			equ 0x00
-
-CR0_PE_BIT			equ 1
 
 
 ; 16-bit code run by DOS as a .COM file
@@ -141,15 +145,15 @@ start32:
 
 load_hardware_cursor_position_16:
 	; Load high byte of cursor position
-	mov	dx, 0x3d4
-	mov	al, 0x0e
+	mov	dx, CURSOR_POS_INDEX_PORT
+	mov	al, CURSOR_POS_INDEX_HIGH
 	out	dx, al
 	inc	dx
 	in	al, dx
 	mov	ah, al
-	; Load low byte of cursor position
 	dec	dx
-	mov	al, 0x0f
+	; Load low byte of cursor position
+	mov	al, CURSOR_POS_INDEX_LOW
 	out	dx, al
 	inc	dx
 	in	al, dx
@@ -281,20 +285,15 @@ print_string:
 
 update_hardware_cursor_position:
 	mov	ecx, [cursor_position]
-	; Set low byte of cursor position
-	mov	dx, 0x3d4
-	mov	al, 0x0f
-	out	dx, al
-	inc	dx
-	mov	al, cl
-	out	dx, al
 	; Set high byte of cursor position
-	dec	dx
-	mov	al, 0x0e
-	out	dx, al
-	inc	dx
-	mov	al, ch
-	out	dx, al
+	mov	dx, CURSOR_POS_INDEX_PORT
+	mov	al, CURSOR_POS_INDEX_HIGH
+	mov	ah, ch
+	out	dx, ax
+	; Set low byte of cursor position
+	mov	al, CURSOR_POS_INDEX_LOW
+	mov	ah, cl
+	out	dx, ax
 
 	ret
 

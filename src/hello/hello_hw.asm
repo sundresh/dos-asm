@@ -6,7 +6,11 @@ org 0x100
 GRAPHICS_SEGMENT		equ 0xb800
 TEXT_STYLE_WHITE_ON_BLACK	equ 0x07
 TWO_SECONDS_IN_MICROSECONDS	equ 0x001e8480
-NUM_TEXT_CHARS_ON_SCREEN	equ 2000	; Assumes 80x25
+NUM_TEXT_CHARS_ON_SCREEN	equ 80 * 25
+CURSOR_POS_INDEX_PORT		equ 0x3d4
+CURSOR_POS_VALUE_PORT		equ CURSOR_POS_INDEX_PORT + 1
+CURSOR_POS_INDEX_HIGH		equ 0x0e
+CURSOR_POS_INDEX_LOW		equ 0x0f
 
 INT_BIOS_WAIT_INT		equ 0x15
 INT_BIOS_WAIT_AH		equ 0x86
@@ -83,20 +87,15 @@ update_hardware_cursor_position:
 	mov	cx, [cursor_position]
 
 	; Set low byte of cursor position
-	mov	dx, 0x3d4
-	mov	al, 0x0f
-	out	dx, al
-	inc	dx
-	mov	al, cl
-	out	dx, al
+	mov	dx, CURSOR_POS_INDEX_PORT
+	mov	al, CURSOR_POS_INDEX_LOW
+	mov	ah, cl
+	out	dx, ax
 
 	; Set high byte of cursor position
-	dec	dx
-	mov	al, 0x0e
-	out	dx, al
-	inc	dx
-	mov	al, ch
-	out	dx, al
+	mov	al, CURSOR_POS_INDEX_HIGH
+	mov	ah, ch
+	out	dx, ax
 
 	ret
 
