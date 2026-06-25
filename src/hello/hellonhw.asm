@@ -127,6 +127,7 @@ clear_screen:
 print_hex_u16:
 	; ax = number to print
 	push	bx
+	sub	sp, 4
 
 	mov	cx, ax
 
@@ -134,28 +135,29 @@ print_hex_u16:
 	mov	al, ch
 	shr	al, 4
 	call	bits_to_hex_char
-	mov	[num_str_buf], al
+	mov	[esp], al
 
 	mov	al, ch
 	and	al, 0x0f
 	call	bits_to_hex_char
-	mov	[num_str_buf+1], al
+	mov	[esp+1], al
 
 	mov	al, cl
 	shr	al, 4
 	call	bits_to_hex_char
-	mov	[num_str_buf+2], al
+	mov	[esp+2], al
 
 	mov	al, cl
 	and	al, 0x0f
 	call	bits_to_hex_char
-	mov	[num_str_buf+3], al
+	mov	[esp+3], al
 
 	; Print string
 	mov	ax, 4
-	mov	bx, num_str_buf
+	mov	bx, sp
 	call	print_string
 
+	add	sp, 4
 	pop	bx
 	ret
 
@@ -179,9 +181,9 @@ print_dec_u16:
 	; ax = number to print
 
 	push	bx
-
 	; Start bx at the end of the string space
-	mov	bx, num_str_buf+5
+	mov	bx, sp
+	sub	sp, 5
 
 	; Fill in characters of the string from least to most significant
 	mov	cx, 10
@@ -195,10 +197,12 @@ print_dec_u16:
 	jnz	.loop
 
 	; Print string
-	mov	ax, num_str_buf+5
+	mov	ax, sp
+	add	ax, 5
 	sub	ax, bx
 	call	print_string
 
+	add	sp, 5
 	pop	bx
 	ret
 
@@ -484,7 +488,8 @@ interrupt_handlers:
 	cli
 	push	ax
 
-	; Use strict to ensure each interrupt handler is the same size
+	; Use strict to ensure each interrupt handler is the same size, so we can easily fill in
+	; pointers to the interrupt handlers in the interrupt vector table.
 	mov	ax, strict word interrupt_num
 	call	shared_interrupt_handler
 
@@ -511,11 +516,6 @@ v86_enabled_str		db	"Virtual 8086 mode enabled"
 V86_ENABLED_STR_LEN	equ	$ - v86_enabled_str
 interrupt_num_str	db	"Interrupt #"
 INTERRUPT_NUM_STR_LEN	equ	$ - interrupt_num_str
-
-; num_str_buf is reserved in data space since print_string doesn't take a far pointer that could be
-; used to locate a temporary string on the stack.
-NUM_STR_BUF_LEN		equ	16
-num_str_buf		times	NUM_STR_BUF_LEN db 0
 
 backup_ivt		dw	256 dup (0, 0)
 
