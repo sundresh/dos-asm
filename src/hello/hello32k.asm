@@ -38,13 +38,13 @@ call_main32_in_protected_mode:
 	; Calculate flat address base of CS
 	mov	ebx, cs
 	shl	ebx, 4
-	; Fill in gdt.cs16_descr and gdt.ds16_descr, used when returning to real mode later
-	mov	[gdt.cs16_descr_base_15_0], bx
-	mov	[gdt.ds16_descr_base_15_0], bx
+	; Fill in gdt.rm_cs16_descr and gdt.rm_ds16_descr, used when returning to real mode later
+	mov	[gdt.rm_cs16_descr_base_15_0], bx
+	mov	[gdt.rm_ds16_descr_base_15_0], bx
 	mov	ecx, ebx
 	shr	ecx, 16
-	mov	[gdt.cs16_descr_base_23_16], cl
-	mov	[gdt.ds16_descr_base_23_16], cl
+	mov	[gdt.rm_cs16_descr_base_23_16], cl
+	mov	[gdt.rm_ds16_descr_base_23_16], cl
 	; Set up GDT
 	mov	eax, ebx
 	add	eax, gdt
@@ -63,7 +63,7 @@ call_main32_in_protected_mode:
 	xor	edx, edx
 	mov	dx, sp
 	mov	[edx], eax
-	mov	[edx+4], word CS32_SEL
+	mov	[edx+4], word SYS_CS32_SEL
 	; Indirect far call to start32 so CS is reloaded
 	mov	eax, ebx
 	call	dword far [edx]
@@ -76,7 +76,7 @@ call_main32_in_protected_mode:
 
 
 [bits 32]
-; Far call CS32_SEL:linear_address(start32) when entering protected mode
+; Far call SYS_CS32_SEL:linear_address(start32) when entering protected mode
 ; Argument: eax = linear_address(.text section)
 start32:
 	push	ebx
@@ -87,7 +87,7 @@ start32:
 	; Save argument: linear_address(.text section)
 	mov	ebx, eax
 	; Reload data/stack segment descriptors
-	mov	ax, DS32_SEL
+	mov	ax, SYS_DS32_SEL
 	mov	ds, ax
 	mov	ss, ax
 	add	esp, ebx
@@ -109,7 +109,7 @@ start32:
 	mov	[esp+2], dword 0
 	lidt	[esp]
 	; Reload data/stack segment descriptors (part 1: switch to 16-bit in protected mode)
-	mov	ax, DS16_SEL
+	mov	ax, RM_DS16_SEL
 	mov	ds, ax
 	mov	ss, ax
 	sub	esp, ebx
@@ -121,9 +121,9 @@ start32:
 .push_ip:
 	pop	eax
 	add	eax, .cs_is_now_16_bits - .push_ip
-	sub	eax, ebx	; Make address relative to CS16_SEL
+	sub	eax, ebx	; Make address relative to RM_CS16_SEL
 	mov	[esp], eax
-	mov	[esp+4], CS16_SEL
+	mov	[esp+4], RM_CS16_SEL
 	jmp	dword far [esp]
 [bits 16]
 .cs_is_now_16_bits:
@@ -187,26 +187,26 @@ update_bios_cursor_position_16:
 align 8
 gdt:
 .unused_first_descr	dd	0, 0
-.cs32_descr		dd	0x0000ffff, 0x00cf9b00
-.ds32_descr		dd	0x0000ffff, 0x00cf9300
-.cs16_descr:
-.cs16_descr_limit	dw	0xffff
-.cs16_descr_base_15_0	dw	0	; Fill this in at runtime
-.cs16_descr_base_23_16	db	0	; Fill this in at runtime
-.cs16_descr_bits	dw	0x009b
-.cs16_descr_base_31_24	db	0
-.ds16_descr:
-.ds16_descr_limit	dw	0xffff
-.ds16_descr_base_15_0	dw	0	; Fill this in at runtime
-.ds16_descr_base_23_16	db	0	; Fill this in at runtime
-.ds16_descr_bits	dw	0x0093
-.ds16_descr_base_31_24	db	0
+.sys_cs32_descr		dd	0x0000ffff, 0x00cf9b00
+.sys_ds32_descr		dd	0x0000ffff, 0x00cf9300
+.rm_cs16_descr:
+.rm_cs16_descr_limit	dw	0xffff
+.rm_cs16_descr_base_15_0	dw	0	; Fill this in at runtime
+.rm_cs16_descr_base_23_16	db	0	; Fill this in at runtime
+.rm_cs16_descr_bits	dw	0x009b
+.rm_cs16_descr_base_31_24	db	0
+.rm_ds16_descr:
+.rm_ds16_descr_limit	dw	0xffff
+.rm_ds16_descr_base_15_0	dw	0	; Fill this in at runtime
+.rm_ds16_descr_base_23_16	db	0	; Fill this in at runtime
+.rm_ds16_descr_bits	dw	0x0093
+.rm_ds16_descr_base_31_24	db	0
 .end:
 
-CS32_SEL		equ	gdt.cs32_descr - gdt
-DS32_SEL		equ	gdt.ds32_descr - gdt
-CS16_SEL		equ	gdt.cs16_descr - gdt
-DS16_SEL		equ	gdt.ds16_descr - gdt
+SYS_CS32_SEL		equ	gdt.sys_cs32_descr - gdt
+SYS_DS32_SEL		equ	gdt.sys_ds32_descr - gdt
+RM_CS16_SEL		equ	gdt.rm_cs16_descr - gdt
+RM_DS16_SEL		equ	gdt.rm_ds16_descr - gdt
 
 
 align 8
@@ -509,7 +509,7 @@ isr_stride	equ	(interrupt_service_routines.end - interrupt_service_routines.begi
 %macro idt_entry 1
 	; TODO: Define a struc and instantiate it here.
 	dw	%1 & 0xffff
-	dw	CS32_SEL
+	dw	SYS_CS32_SEL
 	dw	0x8e00
 	dw	%1 >> 16
 %endmacro
