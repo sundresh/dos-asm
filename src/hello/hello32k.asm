@@ -1,5 +1,5 @@
-; Enter protected mode and output "Hello" via direct hardware access, move the hardware cursor,
-; then exit to real mode DOS, updating the BIOS cursor position along the way.
+; Enter protected mode and output "Hello there" via direct hardware access, move the hardware
+; cursor, wait for a keystroke, then update the BIOS cursor position and exit to real mode DOS.
 
 CR0_PE_BIT			equ 1
 
