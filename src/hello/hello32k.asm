@@ -23,6 +23,10 @@ PIC_ICW4_OPT_8086_MODE_COMMAND	equ 0x01	; Set for 8086 mode, clear for 8080 mode
 PIC1_IRQ_CASCADE_TO_PIC2	equ 2
 IO_WAIT_PORT			equ 0x80	; Send a byte to this port to wait for another device to catch up
 
+BIOS_ENABLE_A20_INT		equ 0x15
+BIOS_ENABLE_A20_AX		equ 0x2401
+BIOS_DISABLE_A20_INT		equ 0x15
+BIOS_DISABLE_A20_AX		equ 0x2400
 BIOS_SET_CURSOR_POS_INT		equ 0x10
 BIOS_SET_CURSOR_POS_AH		equ 0x02
 DOS_EXIT_INT			equ 0x21
@@ -38,8 +42,12 @@ section .text vstart=0x100
 
 
 start16:
+	mov	ax, BIOS_ENABLE_A20_AX
+	int	BIOS_ENABLE_A20_INT
 	call	call_main32_in_protected_mode
 	call	update_bios_cursor_position_16
+	mov	ax, BIOS_DISABLE_A20_AX
+	int	BIOS_DISABLE_A20_INT
 	mov	ah, DOS_EXIT_AH
 	int	DOS_EXIT_INT
 
