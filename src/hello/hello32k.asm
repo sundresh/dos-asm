@@ -11,11 +11,25 @@ CURSOR_POS_VALUE_PORT		equ CURSOR_POS_INDEX_PORT + 1
 CURSOR_POS_INDEX_HIGH		equ 0x0e
 CURSOR_POS_INDEX_LOW		equ 0x0f
 KEYBOARD_SCANCODE_PORT		equ 0x60
+; Classic 8259 programmable interrupt controllers, not modern APIC/IOAPIC
+PIC1_COMMAND_PORT		equ 0x20
+PIC1_DATA_PORT			equ 0x21
+PIC2_COMMAND_PORT		equ 0xa0
+PIC2_DATA_PORT			equ 0xa1
+PIC_EOI_COMMAND			equ 0x20
+PIC_ICW1_OPT_ICW4_COMMAND	equ 0x01	; Set to indicate ICW4 will be sent
+PIC_ICW1_INIT_COMMAND		equ 0x10	; Must be set in ICW1; other bits above are optional
+PIC_ICW4_OPT_8086_MODE_COMMAND	equ 0x01	; Set for 8086 mode, clear for 8080 mode
+PIC1_IRQ_CASCADE_TO_PIC2	equ 2
+IO_WAIT_PORT			equ 0x80	; Send a byte to this port to wait for another device to catch up
 
-INT_BIOS_SET_CURSOR_POS_INT	equ 0x10
-INT_BIOS_SET_CURSOR_POS_AH	equ 0x02
-INT_DOS_EXIT_INT		equ 0x21
-INT_DOS_EXIT_AH			equ 0x00
+BIOS_SET_CURSOR_POS_INT		equ 0x10
+BIOS_SET_CURSOR_POS_AH		equ 0x02
+DOS_EXIT_INT			equ 0x21
+DOS_EXIT_AH			equ 0x00
+
+PM_TIMER_INT			equ 0x20
+PM_KEYBOARD_INT			equ 0x21
 
 
 ; 16-bit code run by DOS as a .COM file
@@ -26,8 +40,8 @@ section .text vstart=0x100
 start16:
 	call	call_main32_in_protected_mode
 	call	update_bios_cursor_position_16
-	mov	ah, INT_DOS_EXIT_AH
-	int	INT_DOS_EXIT_INT
+	mov	ah, DOS_EXIT_AH
+	int	DOS_EXIT_INT
 
 
 call_main32_in_protected_mode:
@@ -177,8 +191,8 @@ update_bios_cursor_position_16:
 	mov	dh, al
 	mov	dl, ah
 	xor	bh, bh
-	mov	ah, INT_BIOS_SET_CURSOR_POS_AH
-	int	INT_BIOS_SET_CURSOR_POS_INT
+	mov	ah, BIOS_SET_CURSOR_POS_AH
+	int	BIOS_SET_CURSOR_POS_INT
 
 	pop	bx
 	ret
@@ -221,9 +235,10 @@ section .text32 vstart=base_of_section_text32
 main32:
 	sub	esp, 6
 
+	call	reprogram_pics_for_protected_mode
+
 	mov	[esp], word (idt.end - idt)
 	mov	[esp+2], dword idt
-	; TODO: reprogram PIC IRQs to not conflict with CPU exceptions
 	lidt	[esp]
 	sti
 
@@ -246,7 +261,65 @@ main32:
 	mov	[last_key_scancode], 0
 
 	cli
+	call	reprogram_pics_for_real_mode
+
 	add	esp, 6
+	ret
+
+
+reprogram_pics_for_protected_mode:
+	mov	eax, 0x20
+	mov	edx, 0x28
+	call	reprogram_pics_offsets
+	ret
+
+
+reprogram_pics_for_real_mode:
+	mov	eax, 0x08
+	mov	edx, 0x70
+	call	reprogram_pics_offsets
+	ret
+
+
+%macro outk 2
+	mov	al, %2
+	out	%1, al
+%endmacro
+
+
+%macro io_wait 0
+	outk	IO_WAIT_PORT, 0
+%endmacro
+
+
+%macro outkw 2
+	outk	%1, %2
+	io_wait
+%endmacro
+
+
+reprogram_pics_offsets:
+	; eax = new interrupt base for PIC1 IRQs
+	; edx = new interrupt base for PIC2 IRQs
+	push	ebx
+
+	mov	ebx, eax
+	mov	ecx, edx
+
+	; Reinitialize both PICs
+	outkw	PIC1_COMMAND_PORT, PIC_ICW1_INIT_COMMAND | PIC_ICW1_OPT_ICW4_COMMAND
+	outkw	PIC2_COMMAND_PORT, PIC_ICW1_INIT_COMMAND | PIC_ICW1_OPT_ICW4_COMMAND
+	outkw	PIC1_DATA_PORT, bl
+	outkw	PIC2_DATA_PORT, cl
+	outkw	PIC1_DATA_PORT, 1 << PIC1_IRQ_CASCADE_TO_PIC2
+	outkw	PIC2_DATA_PORT, PIC1_IRQ_CASCADE_TO_PIC2
+	outkw	PIC1_DATA_PORT, PIC_ICW4_OPT_8086_MODE_COMMAND
+	outkw	PIC2_DATA_PORT, PIC_ICW4_OPT_8086_MODE_COMMAND
+	; Unmask both PICs
+	outkw	PIC1_DATA_PORT, 0
+	outkw	PIC2_DATA_PORT, 0
+
+	pop	ebx
 	ret
 
 
@@ -417,9 +490,8 @@ timer_isr:
 	push	eax
 
 	; TODO: Check for spurious interrupts
-	mov	al, 0x20
-	;out	0xa0, al	; Re-enable the secondary programmable interrupt controller
-	out	0x20, al	; Re-enable the primary programmable interrupt controller
+	mov	al, PIC_EOI_COMMAND
+	out	PIC1_COMMAND_PORT, al	; Re-enable the primary programmable interrupt controller
 
 	pop	eax
 	nmi_safe_iret
@@ -441,9 +513,8 @@ keyboard_isr:
 	call	print_dec_u32
 	call	move_cursor_to_next_line
 	; TODO: Check for spurious interrupts
-	mov	al, 0x20
-	;out	0xa0, al	; Re-enable the secondary programmable interrupt controller
-	out	0x20, al	; Re-enable the primary programmable interrupt controller
+	mov	al, PIC_EOI_COMMAND
+	out	PIC1_COMMAND_PORT, al	; Re-enable the primary programmable interrupt controller
 
 	popad
 	nmi_safe_iret
@@ -488,7 +559,6 @@ interrupt_service_routines:
 .begin:
 %assign i 0
 %rep 256
-	; TODO: Reconfigure PIC so the timer interrupt doesn't conflict with #DF Double Fault
 	%if (i = 8) || (i = 10) || (i = 11) || (i = 12) || (i = 13) || (i = 14) || (i = 17) || (i = 18) || (i = 21)
 		push	word i
 		jmp	generic_isr_with_error_code
@@ -519,12 +589,11 @@ isr_stride	equ	(interrupt_service_routines.end - interrupt_service_routines.begi
 idt:
 %assign i 0
 %rep 256
-	; TODO: Reconfigure PIC so the timer interrupt doesn't conflict with #DF Double Fault
 	%if i = 2
 		idt_entry	nmi_isr - $$ + base_of_section_text32
-	%elif i = 8
+	%elif i = 0x20
 		idt_entry	timer_isr - $$ + base_of_section_text32
-	%elif i = 9
+	%elif i = 0x21
 		idt_entry	keyboard_isr - $$ + base_of_section_text32
 	%else
 		idt_entry	isr_start + i * isr_stride
