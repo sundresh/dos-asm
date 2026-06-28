@@ -272,7 +272,7 @@ RM_CS16_SEL		equ	gdt.rm_cs16_descr - gdt
 RM_DS16_SEL		equ	gdt.rm_ds16_descr - gdt
 
 
-align 8
+align 32
 begin_section_text32_in_section_text:
 
 ; 32-bit code loaded and run by the 16-bit code
@@ -300,8 +300,8 @@ main32:
 	call	print_string
 	call	move_cursor_to_next_line
 	call	enable_paging
-	; Test: page fault
-	mov	eax, [0x200000]
+	; Test: page fault - access an unmapped page in the first 2MB (owned by the first page table)
+	mov	eax, [0x1f0000]
 	; Wait for two scancodes: release of enter key + press of another key.
 .loop1:
 	cmp	byte [last_key_scancode], 0
@@ -515,6 +515,9 @@ update_hardware_cursor_position:
 	ret
 
 
+%include "hexdump32.asm"
+
+
 enable_paging:
 	push	edi
 
@@ -536,15 +539,53 @@ enable_paging:
 	xor	edi, edi
 .loop:
 	mov	eax, edi
-	shl	eax, 10
+	shl	eax, 9
 	or	eax, PxE_PAGE_IS_GLOBAL_BIT | PxE_WRITABLE_BIT | PxE_PRESENT_BIT
-	mov	[page_table+edi], eax
-	add	edi, 4
-	cmp	edi, (page_table >> 10)
+	mov	dword [page_table+edi], eax
+	mov	dword [page_table+edi+4], 0
+	add	edi, 8
+	cmp	edi, (page_table >> 9)
 	jbe	.loop
 .done:
-	; Set page directory base register
-	mov	eax, page_directory & CR3_32_PDB_MASK
+	; Debug log paging data structures
+	; - Page Directory Pointer Table
+	mov	eax, page_dir_ptr_tbl_str.len
+	mov	edx, page_dir_ptr_tbl_str
+	call	print_string
+	call	move_cursor_to_next_line
+	mov	eax, 32
+	mov	edx, page_directory_pointer_table
+	call	hexdump
+	; - Page Directory
+	mov	eax, page_directory_str.len
+	mov	edx, page_directory_str
+	call	print_string
+	call	move_cursor_to_next_line
+	mov	eax, 64
+	mov	edx, page_directory
+	call	hexdump
+	; - Page Table
+	mov	eax, page_table_str.len
+	mov	edx, page_table_str
+	call	print_string
+	call	move_cursor_to_next_line
+	mov	eax, 64
+	mov	edx, page_table
+	call	hexdump
+	mov	eax, ellipsis_str.len
+	mov	edx, ellipsis_str
+	call	print_string
+	call	move_cursor_to_next_line
+	mov	eax, 64
+	mov	edx, page_table+2048
+	call	hexdump
+	call	move_cursor_to_next_line
+	; Enable PAE and PGE
+	mov	eax, cr4
+	or	eax, CR4_PSE_BIT | CR4_PGE_BIT | CR4_PAE_BIT
+	mov	cr4, eax
+	; Load PDPT into CR3, which then caches the four PDPTEs
+	mov	eax, page_directory_pointer_table
 	mov	cr3, eax
 	; Enable paging
 	mov	eax, cr0
@@ -646,21 +687,21 @@ page_fault_isr:
 	mov	eax, ebx
 	call	print_dec_u32
 	call	move_cursor_to_next_line
-	; Map page if it's within the first 4MB and the caller is in supervisor mode
+	; Map page if it's within the first 2MB and the caller is in supervisor mode
 	; - Caller must be in supervisor mode
 	mov	eax, [esp + 8*4 + 2*4]
 	and	eax, 3
 	cmp	eax, 0
 	jne	.wont_map
-	; - Page must be within the first 4MB
-	cmp	ebx, 0x400000
+	; - Page must be within the first 2MB
+	cmp	ebx, 0x200000
 	ja	.wont_map
 	; - Direct map the page (physical address = logical address)
 	and	ebx, PTE_PAGE_ADDR_MASK
 	mov	eax, ebx
 	or	eax, PxE_PAGE_IS_GLOBAL_BIT | PxE_WRITABLE_BIT | PxE_PRESENT_BIT
 	mov	ecx, ebx
-	shr	ecx, 10
+	shr	ecx, 9
 	mov	[page_table+ecx], eax
 	invlpg	[ebx]
 .wont_map:
@@ -764,6 +805,14 @@ idt:
 .end:
 
 
+align 32
+page_directory_pointer_table:
+.pdpte0			dd	page_directory | PDPTE_D0_PRESENT_BIT, 0
+.pdpte1			dd	0, 0
+.pdpte2			dd	0, 0
+.pdpte3			dd	0, 0
+
+
 handling_nmi		dw	0
 cursor_position		dd	0
 last_key_scancode	db	0
@@ -779,7 +828,14 @@ interrupt_num_str	db	"Interrupt #"
 .len			equ	11
 with_error_code_str	db	" with error code "
 .len			equ	17
-
+ellipsis_str		db	"..."
+.len			equ	3
+page_dir_ptr_tbl_str	db	"Page Directory Pointer Table bytes:"
+.len			equ	35
+page_directory_str	db	"Page Directory bytes:"
+.len			equ	21
+page_table_str		db	"Page Table bytes:"
+.len			equ	17
 
 end_section_text32:
 
