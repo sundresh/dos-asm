@@ -4,13 +4,24 @@
 CR0_PE_BIT			equ 1 << 0
 CR0_WP_BIT			equ 1 << 16
 CR0_PG_BIT			equ 1 << 31
-CR3_PWT_BIT			equ 1 << 3	; PWT = Page Write Through
-CR3_PCD_BIT			equ 1 << 4	; PCD = Page Cache Disabled
-CR3_PDB_MASK			equ 0xfffff000
+CR3_32_PWT_BIT			equ 1 << 3	; PWT = Page Write Through
+CR3_32_PCD_BIT			equ 1 << 4	; PCD = Page Cache Disabled
+CR3_32_PDB_MASK			equ 0xfffff000	; PDB = Page Directory Base
+CR3_PAE_PDPTB_MASK		equ 0xffffffe0	; PDPTB = Page Directory Pointer Table Base
 CR4_TSD_BIT			equ 1 << 2	; TSD = Time Stamp Disable (restricts RDTSC to PL 0)
-CR4_PSE_BIT			equ 1 << 4
-CR4_PAE_BIT			equ 1 << 5	; PAE = Physical Address Extnsion
+CR4_PSE_BIT			equ 1 << 4	; PSE = Page Size Extension
+CR4_PAE_BIT			equ 1 << 5	; PAE = Physical Address Extension
 CR4_PGE_BIT			equ 1 << 7	; PGE = Page Global Enable
+
+; Page Directory Pointer Table Entry bits
+; Each entry is 64 bits = 2 dwords, which we refer to as PDPTE_D0 and PDPTE_D1
+PDPTE_D0_PRESENT_BIT		equ 1 << 0
+PDPTE_D0_PWT_BIT		equ 1 << 3	; PWT = Page Write Through
+PDPTE_D0_PCD_BIT		equ 1 << 4	; PCD = Page Cache Disabled
+PDPTE_D0_LOW_ADDR_MASK		equ 0xfffff000	; And with mask then shift to get low bits of addr
+PDPTE_D0_LOW_ADDR_SHIFT		equ 0
+PDPTE_D1_HIGH_ADDR_MASK		equ 0xffffffff	; And with mask then shift to get high bits of addr
+PDPTE_D1_HIGH_ADDR_SHIFT	equ 32
 
 ; Page [Directory or Table] Entry bits
 PxE_PRESENT_BIT			equ 1 << 0
@@ -533,7 +544,7 @@ enable_paging:
 	jbe	.loop
 .done:
 	; Set page directory base register
-	mov	eax, page_directory & CR3_PDB_MASK
+	mov	eax, page_directory & CR3_32_PDB_MASK
 	mov	cr3, eax
 	; Enable paging
 	mov	eax, cr0
