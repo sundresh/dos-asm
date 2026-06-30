@@ -78,22 +78,14 @@ u8_to_hex:
 	; The output order is intentionally reversed so you can directly copy it into memory.
 	mov	ah, al
 	shr	al, 4		; al = High order 4 bits
-	and	al, 0x0f
 	and	ah, 0x0f	; ah = Low order 4 bits
-	cmp	al, 9
-	ja	.first_hex_digit_is_a_letter
-	add	al, '0'
-	jmp	.format_second_hex_digit
-.first_hex_digit_is_a_letter:
-	add	al, 'a' - 0x0a
-.format_second_hex_digit:
-	cmp	ah, 9
-	ja	.second_hex_digit_is_a_letter
-	add	ah, '0'
+	movzx	ecx, ah
+	mov	ah, [.hex_digit_to_char + ecx]
+	movzx	ecx, al
+	mov	al, [.hex_digit_to_char + ecx]
 	ret
-.second_hex_digit_is_a_letter:
-	add	ah, 'a' - 0x0a
-	ret
+.hex_digit_to_char	db	"0123456789abcdef"
+
 
 
 u32_to_hex:
