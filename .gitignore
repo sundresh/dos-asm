@@ -2,3 +2,4 @@
 *.com
 *.COM
 *.o
+target/

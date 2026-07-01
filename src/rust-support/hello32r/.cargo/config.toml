@@ -1,0 +1,10 @@
+[build]
+target = "i686-flat.json"
+
+[target.i686-flat]
+rustflags = [
+    "-C", "link-arg=-Tlink.ld",
+]
+
+[unstable]
+build-std = ["core"]
