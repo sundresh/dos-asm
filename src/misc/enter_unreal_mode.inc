@@ -1,7 +1,7 @@
-BIOS_ENABLE_A20_INT	equ	0x15
-BIOS_ENABLE_A20_AX	equ	0x2401
 
 enter_unreal_mode:
+.BIOS_ENABLE_A20_INT	equ	0x15
+.BIOS_ENABLE_A20_AX	equ	0x2401
 	cli
 	; Backup segment bases
 	push	ds
@@ -10,14 +10,14 @@ enter_unreal_mode:
 	push	gs
 	mov	bx, ss
 	; Enable A20 line
-	mov	ax, BIOS_ENABLE_A20_AX
-	int	BIOS_ENABLE_A20_INT
+	mov	ax, .BIOS_ENABLE_A20_AX
+	int	.BIOS_ENABLE_A20_INT
 	; Load GDT
 	mov	eax, ds
 	shl	eax, 4
-	add	eax, gdt	; eax = Linear address of GDT	
+	add	eax, unreal_mode_gdt	; eax = Linear address of GDT
 	sub	esp, 6
-	mov	[esp], word (gdt.end - gdt)
+	mov	[esp], word (unreal_mode_gdt.end - unreal_mode_gdt)
 	mov	[esp+2], eax
 	lgdt	[esp]
 	add	esp, 6
@@ -26,7 +26,7 @@ enter_unreal_mode:
 	or	eax, 1
 	mov	cr0, eax
 	; Set segment limits
-	mov	ax, URM_DS_SEL
+	mov	ax, UNREAL_MODE_DS_SELECTOR
 	mov	ds, ax
 	mov	es, ax
 	mov	fs, ax
@@ -47,7 +47,7 @@ enter_unreal_mode:
 	ret
 
 align 8
-gdt:
+unreal_mode_gdt:
 .unused_first_descr		dd	0, 0
 .urm_ds_descr:
 .urm_ds_descr_limit		dw	0xffff
@@ -57,4 +57,4 @@ gdt:
 .urm_ds_descr_base_31_24	db	0
 .end:
 
-URM_DS_SEL		equ	gdt.urm_ds_descr - gdt
+UNREAL_MODE_DS_SELECTOR		equ	unreal_mode_gdt.urm_ds_descr - unreal_mode_gdt
