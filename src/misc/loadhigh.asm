@@ -24,12 +24,11 @@ start:
 	call	read_file_contents
 	jnc	.exit
 .error:
-	mov	cx, error_reading_file_str.len	; cx = String length
-	mov	dx, error_reading_file_str	; dx = String start address
-	mov	bx, 0x01			; bx = stdout
-	mov	ah, 0x40			; Write to file handle
+	mov	dx, error_reading_file_strd	; dx = $-terminated string address
+	mov	ah, 0x09			; Print $-terminated string
 	int	0x21
 .exit:
+	call	exit_unreal_mode
 	mov	ah, 0x00
 	int	0x21
 
@@ -233,14 +232,10 @@ read_file_contents:
 	cmp	sp, 0xffff	; Set CF to indicate an error.
 	jmp	.exit
 
-%macro dstr 1
-			db	%1
-.len			equ	%strlen(%1)
-%endmacro
+; "_strd" means "string terminated by dollar sign"
+error_reading_file_strd	db	"Error reading file$"
 
-error_reading_file_str	dstr	"Error reading file"
-
-%include "enter_unreal_mode.inc"
+%include "unreal_mode.inc"
 
 copy_buf:
 .len			equ	32768
