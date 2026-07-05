@@ -131,15 +131,12 @@ call_main32_in_protected_mode:
 
 [bits 32]
 ; Far call SYS_CS32_SEL:linear_address(start32) when entering protected mode
-; Argument: eax = linear_address(.text section)
+; Argument: ebx = linear_address(.text section)
 start32:
-	push	ebx
 	push	esi
 	push	edi
 	sub	esp, 6
 
-	; Save argument: linear_address(.text section)
-	mov	ebx, eax
 	; Reload data/stack segment descriptors
 	mov	ax, SYS_DS32_SEL
 	mov	ds, ax
@@ -198,7 +195,6 @@ start32:
 	add	esp, 6
 	pop	edi
 	pop	esi
-	pop	ebx
 	retfd
 
 
@@ -286,22 +282,15 @@ main32:
 	wrmsr
 	; Enable paging
 	call	enable_paging
-	; TODO:
-	;	- Try calling 64-bit code
-	;	- Set up 64-bit IDT
-	;	- Handle interrupts
 
 	call	reprogram_pics_for_protected_mode
+	; TODO: Set up 64-bit IDT & handle interrupts
 ;	mov	[esp], word (idt.end - idt)
 ;	mov	[esp+2], dword idt
 ;	lidt	[esp]
 ;	sti
 
-	;mov	[esp], dword main64
-	;mov	[esp+4], dword SYS_CS64_SEL
-	;jmp	[esp]
-	jmp	SYS_CS64_SEL:main64
-.back:
+	call	dword far SYS_CS64_SEL:main64
 
 ;	; Test: page fault - access an unmapped page in the first 2MB (owned by the first page table)
 ;	mov	eax, [0x1f0000]
@@ -425,10 +414,10 @@ reprogram_pics_offsets:
 main64:
 	call	clear_screen
 	mov	eax, hello_str.len
-	mov	edx, hello_str
+	mov	rdx, hello_str
 	call	print_string
 	mov	eax, there_str.len
-	mov	edx, there_str
+	mov	rdx, there_str
 	call	print_string
 	call	move_cursor_to_next_line
 	mov	ecx, IA32_EFER_MSR_ID
@@ -436,11 +425,8 @@ main64:
 	call	print_dec_u32
 	call	move_cursor_to_next_line
 
-	; TODO: Calling main64 and making this a retf doesn't work, even if we try changing the
-	; return stack contents from 32 bit to 64 bit.
-	jmp	far [.ret_addr]
-.ret_addr	dq main32.back, SYS_CS32_SEL
-	
+	retfd
+
 
 clear_screen:
 	push	rdi
@@ -468,15 +454,15 @@ print_dec_u32:
 	xor	edx, edx
 	div	ecx
 	add	dl, '0'
-	dec	ebx
-	mov	[ebx], dl
+	dec	rbx
+	mov	[rbx], dl
 	test	eax, eax
 	jnz	.loop
 	; Print string
-	mov	eax, esp
-	add	eax, 10
-	sub	eax, ebx
-	mov	edx, ebx
+	mov	rax, rsp
+	add	rax, 10
+	sub	rax, rbx
+	mov	rdx, rbx
 	call	print_string
 
 	add	rsp, 10
@@ -486,10 +472,10 @@ print_dec_u32:
 
 print_string:
 	; eax = string length
-	; edx = string contents
+	; rdx = address of string contents
 	push	rsi
 	push	rdi
-	mov	esi, edx
+	mov	rsi, rdx
 
 	; Set ecx = edi = cursor position
 	mov	ecx, [cursor_position]
@@ -505,19 +491,19 @@ print_string:
 	add	ecx, eax
 	; Set edi = first byte to write to
 	shl	edi, 1
-	add	edi, VIDEO_BUFFER
+	add	rdi, VIDEO_BUFFER
 	; Write characters with style non-bold white on black
 	mov	dh, TEXT_STYLE_WHITE_ON_BLACK
 .loop:
 	test	eax, eax
 	jz	.loop_done
 	; Write character
-	mov	dl, [esi]
-	mov	[edi], dx
+	mov	dl, [rsi]
+	mov	[rdi], dx
 	; Increment & loop
 	dec	eax
-	inc	esi
-	add	edi, 2
+	inc	rsi
+	add	rdi, 2
 	jmp	.loop
 .loop_done:
 	; Move cursor
@@ -582,7 +568,7 @@ update_hardware_cursor_position:
 	ret
 
 
-;%include "hexdump32.asm"
+%include "hexdump64.asm"
 
 
 cursor_position		dd	0
