@@ -1,3 +1,5 @@
+%include "x86bits.inc"
+
 [bits 16]
 
 call_main32:
@@ -22,6 +24,11 @@ call_main32:
 	mov	[esp], word bootstrap_gdt.size
 	mov	[esp + 2], eax
 	lgdt	[esp]
+	; Enable long mode (doesn't go into effect until paging is enabled)
+	mov	ecx, MSR_IA32_EFER_ID
+	rdmsr
+	or	eax, MSR_IA32_EFER_LME_BIT
+	wrmsr
 	; TODO: Set up bootstrap page table
 	; Enable protected mode
 	mov	eax, cr0
@@ -66,6 +73,15 @@ call_main32:
 	mov	eax, cr0
 	and	eax, ~1
 	mov	cr0, eax
+	; Disable long mode (affects what happens the next time paging is enabled)
+	mov	ecx, MSR_IA32_EFER_ID
+	rdmsr
+	and	eax, ~MSR_IA32_EFER_LME_BIT
+	wrmsr
+	; Clear out GDT
+	mov	[esp], word 0
+	mov	[esp + 2], dword 0
+	lgdt	[esp]
 	; Restore data segment selectors
 	shr	ebx, 4
 	mov	ds, bx
@@ -93,37 +109,48 @@ bootstrap_gdt:
 	.code_64_descr_limit_0_15	dw	0
 	.code_64_descr_base_0_15	dw	0
 	.code_64_descr_base_16_23	db	0
-	.code_64_descr_bits		dw	GDT_DESCR_IS_ACCESSED | GDT_DESCR_TYPE_CODE_XO | GDT_DESCR_IS_MEMORY | GDT_DESCR_IS_PRESENT | GDT_DESCR_IS_CODE_64
+	.code_64_descr_bits		dw	GDT_DESCR_IS_ACCESSED_BIT | GDT_DESCR_TYPE_CODE_XO \
+						| GDT_DESCR_IS_MEMORY_BIT | GDT_DESCR_IS_PRESENT_BIT \
+						| GDT_DESCR_IS_CODE_64_BIT
 	.code_64_descr_base_24_31	db	0
 .data_64_descr:
 	.data_64_descr_limit_0_15	dw	0
 	.data_64_descr_base_0_15	dw	0
 	.data_64_descr_base_16_23	db	0
-	.data_64_descr_bits		dw	GDT_DESCR_IS_ACCESSED | GDT_DESCR_TYPE_DATA_RW | GDT_DESCR_IS_MEMORY | GDT_DESCR_IS_PRESENT
+	.data_64_descr_bits		dw	GDT_DESCR_IS_ACCESSED_BIT | GDT_DESCR_TYPE_DATA_RW \
+						| GDT_DESCR_IS_MEMORY_BIT | GDT_DESCR_IS_PRESENT_BIT
 	.data_64_descr_base_24_31	db	0
 .code_32_descr:
 	.code_32_descr_limit_0_15	dw	0xffff
 	.code_32_descr_base_0_15	dw	0
 	.code_32_descr_base_16_23	db	0
-	.code_32_descr_bits		dw	GDT_DESCR_IS_ACCESSED | GDT_DESCR_TYPE_CODE_XO | GDT_DESCR_IS_MEMORY | GDT_DESCR_IS_PRESENT | GDT_DESCR_LIMIT_16_19_MASK | GDT_DESCR_IS_32_BIT | GDT_DESCR_IS_LIMIT_TIMES_4K
+	.code_32_descr_bits		dw	GDT_DESCR_IS_ACCESSED_BIT | GDT_DESCR_TYPE_CODE_XO \
+						| GDT_DESCR_IS_MEMORY_BIT | GDT_DESCR_IS_PRESENT_BIT \
+						| GDT_DESCR_LIMIT_16_19_MASK | GDT_DESCR_IS_32_BIT \
+						| GDT_DESCR_GRANULARITY_BIT
 	.code_32_descr_base_24_31	db	0
 .data_32_descr:
 	.data_32_descr_limit_0_15	dw	0xffff
 	.data_32_descr_base_0_15	dw	0
 	.data_32_descr_base_16_23	db	0
-	.data_32_descr_bits		dw	GDT_DESCR_IS_ACCESSED | GDT_DESCR_TYPE_DATA_RW | GDT_DESCR_IS_MEMORY | GDT_DESCR_IS_PRESENT | GDT_DESCR_LIMIT_16_19_MASK | GDT_DESCR_IS_32_BIT | GDT_DESCR_IS_LIMIT_TIMES_4K
+	.data_32_descr_bits		dw	GDT_DESCR_IS_ACCESSED_BIT | GDT_DESCR_TYPE_DATA_RW \
+						| GDT_DESCR_IS_MEMORY_BIT | GDT_DESCR_IS_PRESENT_BIT \
+						| GDT_DESCR_LIMIT_16_19_MASK | GDT_DESCR_IS_32_BIT \
+						| GDT_DESCR_GRANULARITY_BIT
 	.data_32_descr_base_24_31	db	0
 .code_16_descr:
 	.code_16_descr_limit_0_15	dw	0xffff
 	.code_16_descr_base_0_15	dw	0	; Filled in at runtime
 	.code_16_descr_base_16_23	db	0	; Filled in at runtime
-	.code_16_descr_bits		dw	GDT_DESCR_IS_ACCESSED | GDT_DESCR_TYPE_CODE_XO | GDT_DESCR_IS_MEMORY | GDT_DESCR_IS_PRESENT
+	.code_16_descr_bits		dw	GDT_DESCR_IS_ACCESSED_BIT | GDT_DESCR_TYPE_CODE_XO \
+						| GDT_DESCR_IS_MEMORY_BIT | GDT_DESCR_IS_PRESENT_BIT
 	.code_16_descr_base_24_31	db	0
 .data_16_descr:
 	.data_16_descr_limit_0_15	dw	0xffff
 	.data_16_descr_base_0_15	dw	0	; Filled in at runtime
 	.data_16_descr_base_16_23	db	0	; Filled in at runtime
-	.data_16_descr_bits		dw	GDT_DESCR_IS_ACCESSED | GDT_DESCR_TYPE_DATA_RW | GDT_DESCR_IS_MEMORY | GDT_DESCR_IS_PRESENT
+	.data_16_descr_bits		dw	GDT_DESCR_IS_ACCESSED_BIT | GDT_DESCR_TYPE_DATA_RW \
+						| GDT_DESCR_IS_MEMORY_BIT | GDT_DESCR_IS_PRESENT_BIT
 	.data_16_descr_base_24_31	db	0
 .end:
 .size			equ	.end - bootstrap_gdt
