@@ -1,25 +1,25 @@
 [bits 16]
 
 ; From https://uefi.org/htmlspecs/ACPI_Spec_6_4_html/15_System_Address_Map_Interfaces/Sys_Address_Map_Interfaces.html
-AddressRangeType:
-.memory			equ	1
-.reserved		equ	2
-.acpi			equ	3
-.nvs			equ	4
-.unusable		equ	5
-.disabled		equ	6
-.persistentMemory	equ	7
+ADDRESS_RANGE_TYPE:
+.MEMORY			equ	1
+.RESERVED		equ	2
+.ACPI			equ	3
+.NVS			equ	4
+.UNUSABLE		equ	5
+.DISABLED		equ	6
+.PERSISTENT_MEMORY	equ	7
 
 ; See https://uefi.org/htmlspecs/ACPI_Spec_6_4_html/15_System_Address_Map_Interfaces/int-15h-e820h---query-system-address-map.html
-struc AddressRangeDescriptor
-	.baseAddrLow		resd	1
-	.baseAddrHigh		resd	1
-	.lengthLow		resd	1
-	.lengthHigh		resd	1
+struc address_range_descriptor
+	.base_addr_low		resd	1
+	.base_addr_high		resd	1
+	.length_low		resd	1
+	.length_high		resd	1
 	.type			resd	1
 endstruc
 
-loadAddressRangeDescriptors:
+load_address_range_descriptors:
 	push	eax
 	push	ebx
 	push	ecx
@@ -28,18 +28,18 @@ loadAddressRangeDescriptors:
 
 	mov	ebx, 0
 .loop:
-	mov	di, [numAddressRangeDescriptors]
-	cmp	di, MaxNumAddressRangeDescriptors
+	mov	di, [num_address_range_descriptors]
+	cmp	di, MAX_NUM_ADDRESS_RANGE_DESCRIPTORS
 	ja	.exit
-	imul	di, di, AddressRangeDescriptor_size
-	add	di, addressRangeDescriptors
+	imul	di, di, address_range_descriptor_size
+	add	di, address_range_descriptors
 	mov	eax, 0xe820
 	mov	ecx, 20
 	mov	edx, "PAMS"	; "SMAP" written backwards
 	int	0x15
 	jc	.exit
 	; Continue the loop
-	inc	[numAddressRangeDescriptors]
+	inc	[num_address_range_descriptors]
 	test	ebx, ebx
 	jnz	.loop
 
@@ -51,7 +51,7 @@ loadAddressRangeDescriptors:
 	pop	eax
 	ret
 
-MaxNumAddressRangeDescriptors	equ	100
+MAX_NUM_ADDRESS_RANGE_DESCRIPTORS	equ	100
 
-numAddressRangeDescriptors	dd	0
-addressRangeDescriptors times MaxNumAddressRangeDescriptors resb AddressRangeDescriptor_size
+num_address_range_descriptors	dd	0
+address_range_descriptors times MAX_NUM_ADDRESS_RANGE_DESCRIPTORS resb address_range_descriptor_size

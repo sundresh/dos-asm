@@ -2,8 +2,8 @@
 [bits 16]
 
 main:
-	call	loadAddressRangeDescriptors
-	call	callMain32
+	call	load_address_range_descriptors
+	call	call_main32
 	xor	ah, ah
 	int	0x21
 

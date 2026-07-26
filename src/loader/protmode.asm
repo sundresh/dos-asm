@@ -1,6 +1,6 @@
 [bits 16]
 
-callMain32:
+call_main32:
 	push	ebx
 	sub	sp, 6
 	cli
@@ -11,15 +11,15 @@ callMain32:
 	; Initialize 16-bit GDT descriptors to use when returning to real mode
 	mov	eax, ebx
 	shr	eax, 16
-	mov	[bootstrapGDT.code16DescriptorBase0to15], bx
-	mov	[bootstrapGDT.code16DescriptorBase16to23], al
+	mov	[bootstrap_gdt.code_16_descr_base_0_15], bx
+	mov	[bootstrap_gdt.code_16_descr_base_16_23], al
 	mov	eax, ebx
-	mov	[bootstrapGDT.data16DescriptorBase0to15], bx
-	mov	[bootstrapGDT.data16DescriptorBase16to23], al
+	mov	[bootstrap_gdt.data_16_descr_base_0_15], bx
+	mov	[bootstrap_gdt.data_16_descr_base_16_23], al
 	; Load GDT
 	mov	eax, ebx
-	add	eax, bootstrapGDT
-	mov	[esp], word bootstrapGDT.size
+	add	eax, bootstrap_gdt
+	mov	[esp], word bootstrap_gdt.size
 	mov	[esp + 2], eax
 	lgdt	[esp]
 	; TODO: Set up bootstrap page table
@@ -28,7 +28,7 @@ callMain32:
 	or	eax, 1
 	mov	cr0, eax
 	; Load data segment descriptors
-	mov	ax, bootstrapGDT.Data32Selector
+	mov	ax, bootstrap_gdt.DATA_32_SEL
 	mov	ds, ax
 	mov	es, ax
 	mov	fs, ax
@@ -40,7 +40,7 @@ callMain32:
 	mov	eax, ebx
 	add	eax, .begin32
 	mov	[esp], eax
-	mov	[esp+4], bootstrapGDT.Code32Selector
+	mov	[esp+4], bootstrap_gdt.CODE_32_SEL
 	jmp	dword far [esp]
 [bits 32]
 .begin32:
@@ -48,7 +48,7 @@ callMain32:
 	; TODO: call main64 instead, with a bootstrap 4-level page table
 	call	main32
 	; Restore data segment descriptors
-	mov	ax, bootstrapGDT.Data16Selector
+	mov	ax, bootstrap_gdt.DATA_16_SEL
 	mov	ds, ax
 	mov	es, ax
 	mov	fs, ax
@@ -58,7 +58,7 @@ callMain32:
 	sub	esp, ebx
 	; Restore code segment descriptor
 	mov	[esp], dword .resume16
-	mov	[esp+4], bootstrapGDT.Code16Selector
+	mov	[esp+4], bootstrap_gdt.CODE_16_SEL
 	jmp	dword far [esp]
 [bits 16]
 .resume16:
@@ -85,30 +85,30 @@ callMain32:
 	ret
 
 align 8
-bootstrapGDT:
+bootstrap_gdt:
 ; TODO: struc GDTDescriptor
 .nullDescriptor		dd	0, 0
-.code64Descriptor	dd	0, 0x00a09b00
-.data64Descriptor	dd	0, 0x00a09300
-.code32Descriptor	dd	0x0000ffff, 0x00cf9b00
-.data32Descriptor	dd	0x0000ffff, 0x00cf9300
-.code16Descriptor:
-	.code16DescriptorLimit		dw	0xffff
-	.code16DescriptorBase0to15	dw	0	; Filled in at runtime
-	.code16DescriptorBase16to23	db	0	; Filled in at runtime
-	.code16DescriptorBitfields	dw	0x009b
-	.code16DescriptorBase24to31	db	0
-.data16Descriptor:
-	.data16DescriptorLimit		dw	0xffff
-	.data16DescriptorBase0to15	dw	0	; Filled in at runtime
-	.data16DescriptorBase16to23	db	0	; Filled in at runtime
-	.data16DescriptorBitfields	dw	0x0093
-	.data16DescriptorBase24to31	db	0
+.code_64_descr	dd	0, 0x00a09b00
+.data_64_descr	dd	0, 0x00a09300
+.code_32_descr	dd	0x0000ffff, 0x00cf9b00
+.data_32_descr	dd	0x0000ffff, 0x00cf9300
+.code_16_descr:
+	.code_16_descr_limit		dw	0xffff
+	.code_16_descr_base_0_15	dw	0	; Filled in at runtime
+	.code_16_descr_base_16_23	db	0	; Filled in at runtime
+	.code_16_descr_bitfields	dw	0x009b
+	.code_16_descr_base_24_31	db	0
+.data_16_descr:
+	.data_16_descr_limit		dw	0xffff
+	.data_16_descr_base_0_15	dw	0	; Filled in at runtime
+	.data_16_descr_base_16_23	db	0	; Filled in at runtime
+	.data_16_descr_bitfields	dw	0x0093
+	.data_16_descr_base_24_31	db	0
 .end:
-.size			equ	.end - bootstrapGDT
-.Code64Selector	equ	.code64Descriptor - bootstrapGDT
-.Data64Selector	equ	.data64Descriptor - bootstrapGDT
-.Code32Selector	equ	.code32Descriptor - bootstrapGDT
-.Data32Selector	equ	.data32Descriptor - bootstrapGDT
-.Code16Selector	equ	.code16Descriptor - bootstrapGDT
-.Data16Selector	equ	.data16Descriptor - bootstrapGDT
+.size			equ	.end - bootstrap_gdt
+.CODE_64_SEL	equ	.code_64_descr - bootstrap_gdt
+.DATA_64_SEL	equ	.data_64_descr - bootstrap_gdt
+.CODE_32_SEL	equ	.code_32_descr - bootstrap_gdt
+.DATA_32_SEL	equ	.data_32_descr - bootstrap_gdt
+.CODE_16_SEL	equ	.code_16_descr - bootstrap_gdt
+.DATA_16_SEL	equ	.data_16_descr - bootstrap_gdt
