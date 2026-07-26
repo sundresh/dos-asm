@@ -1,5 +1,3 @@
-[bits 16]
-
 ; From https://uefi.org/htmlspecs/ACPI_Spec_6_4_html/15_System_Address_Map_Interfaces/Sys_Address_Map_Interfaces.html
 ADDRESS_RANGE_TYPE:
 .MEMORY			equ	1
@@ -19,6 +17,8 @@ struc address_range_descriptor
 	.type			resd	1
 endstruc
 
+section .text
+bits 16
 load_address_range_descriptors:
 	push	eax
 	push	ebx
@@ -51,7 +51,9 @@ load_address_range_descriptors:
 	pop	eax
 	ret
 
+section .data
 MAX_NUM_ADDRESS_RANGE_DESCRIPTORS	equ	100
-
 num_address_range_descriptors	dd	0
+
+section .bss
 address_range_descriptors times MAX_NUM_ADDRESS_RANGE_DESCRIPTORS resb address_range_descriptor_size

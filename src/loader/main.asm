@@ -1,6 +1,7 @@
-[org 0x100]
-[bits 16]
+org 0x100
 
+section .text
+bits 16
 main:
 	mov	ax, (BIOS_A20_AH << 8) | BIOS_A20_ENABLE_AL
 	int	BIOS_A20_INT

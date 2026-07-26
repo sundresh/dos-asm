@@ -1,7 +1,7 @@
 %include "x86bits.inc"
 
-[bits 16]
-
+section .text
+bits 16
 call_main32:
 	push	ebx
 	sub	sp, 6
@@ -49,7 +49,7 @@ call_main32:
 	mov	[esp], eax
 	mov	[esp+4], bootstrap_gdt.CODE_32_SEL
 	jmp	dword far [esp]
-[bits 32]
+bits 32
 .begin32:
 	; Call main32
 	; TODO: call main64 instead, with a bootstrap 4-level page table
@@ -67,7 +67,7 @@ call_main32:
 	mov	[esp], dword .resume16
 	mov	[esp+4], bootstrap_gdt.CODE_16_SEL
 	jmp	dword far [esp]
-[bits 16]
+bits 16
 .resume16:
 	; Disable protected mode
 	mov	eax, cr0
@@ -102,6 +102,7 @@ call_main32:
 
 %include "gdt.inc"
 
+section .data
 align 8
 bootstrap_gdt:
 .null_descr		dd	0, 0
