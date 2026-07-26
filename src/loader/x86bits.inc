@@ -1,9 +1,9 @@
 %ifndef	__X86_BITS__INC__
 %define	__X86_BITS__INC__
 
-CR0_PE_BIT			equ 1 << 0
-CR0_WP_BIT			equ 1 << 16
-CR0_PG_BIT			equ 1 << 31
+CR0_PE_BIT			equ 1 << 0	; PE = Protection Enabled
+CR0_WP_BIT			equ 1 << 16	; WP = Write Protect pages even in supervisor mode
+CR0_PG_BIT			equ 1 << 31	; PG = PaGing enabled
 CR3_PWT_BIT			equ 1 << 3	; PWT = Page Write Through
 CR3_PCD_BIT			equ 1 << 4	; PCD = Page Cache Disabled
 CR3_32_PDB_MASK			equ 0xfffff000	; PDB = Page Directory Base
