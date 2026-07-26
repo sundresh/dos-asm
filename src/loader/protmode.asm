@@ -74,41 +74,62 @@ call_main32:
 	mov	gs, bx
 	mov	ss, bx
 	; Restore code segment selector
-	mov	[esp], dword .restoredCS
+	mov	[esp], dword .restored_cs
 	mov	[esp+4], bx
 	jmp	dword far [esp]
-.restoredCS:
+.restored_cs:
 
 	sti
 	add	sp, 6
 	pop	ebx
 	ret
 
+%include "gdt.inc"
+
 align 8
 bootstrap_gdt:
-; TODO: struc GDTDescriptor
-.nullDescriptor		dd	0, 0
-.code_64_descr	dd	0, 0x00a09b00
-.data_64_descr	dd	0, 0x00a09300
-.code_32_descr	dd	0x0000ffff, 0x00cf9b00
-.data_32_descr	dd	0x0000ffff, 0x00cf9300
+.null_descr		dd	0, 0
+.code_64_descr:
+	.code_64_descr_limit_0_15	dw	0
+	.code_64_descr_base_0_15	dw	0
+	.code_64_descr_base_16_23	db	0
+	.code_64_descr_bits		dw	GDT_DESCR_IS_ACCESSED | GDT_DESCR_TYPE_CODE_XO | GDT_DESCR_IS_MEMORY | GDT_DESCR_IS_PRESENT | GDT_DESCR_IS_CODE_64
+	.code_64_descr_base_24_31	db	0
+.data_64_descr:
+	.data_64_descr_limit_0_15	dw	0
+	.data_64_descr_base_0_15	dw	0
+	.data_64_descr_base_16_23	db	0
+	.data_64_descr_bits		dw	GDT_DESCR_IS_ACCESSED | GDT_DESCR_TYPE_DATA_RW | GDT_DESCR_IS_MEMORY | GDT_DESCR_IS_PRESENT
+	.data_64_descr_base_24_31	db	0
+.code_32_descr:
+	.code_32_descr_limit_0_15	dw	0xffff
+	.code_32_descr_base_0_15	dw	0
+	.code_32_descr_base_16_23	db	0
+	.code_32_descr_bits		dw	GDT_DESCR_IS_ACCESSED | GDT_DESCR_TYPE_CODE_XO | GDT_DESCR_IS_MEMORY | GDT_DESCR_IS_PRESENT | GDT_DESCR_LIMIT_16_19_MASK | GDT_DESCR_IS_32_BIT | GDT_DESCR_IS_LIMIT_TIMES_4K
+	.code_32_descr_base_24_31	db	0
+.data_32_descr:
+	.data_32_descr_limit_0_15	dw	0xffff
+	.data_32_descr_base_0_15	dw	0
+	.data_32_descr_base_16_23	db	0
+	.data_32_descr_bits		dw	GDT_DESCR_IS_ACCESSED | GDT_DESCR_TYPE_DATA_RW | GDT_DESCR_IS_MEMORY | GDT_DESCR_IS_PRESENT | GDT_DESCR_LIMIT_16_19_MASK | GDT_DESCR_IS_32_BIT | GDT_DESCR_IS_LIMIT_TIMES_4K
+	.data_32_descr_base_24_31	db	0
 .code_16_descr:
-	.code_16_descr_limit		dw	0xffff
+	.code_16_descr_limit_0_15	dw	0xffff
 	.code_16_descr_base_0_15	dw	0	; Filled in at runtime
 	.code_16_descr_base_16_23	db	0	; Filled in at runtime
-	.code_16_descr_bitfields	dw	0x009b
+	.code_16_descr_bits		dw	GDT_DESCR_IS_ACCESSED | GDT_DESCR_TYPE_CODE_XO | GDT_DESCR_IS_MEMORY | GDT_DESCR_IS_PRESENT
 	.code_16_descr_base_24_31	db	0
 .data_16_descr:
-	.data_16_descr_limit		dw	0xffff
+	.data_16_descr_limit_0_15	dw	0xffff
 	.data_16_descr_base_0_15	dw	0	; Filled in at runtime
 	.data_16_descr_base_16_23	db	0	; Filled in at runtime
-	.data_16_descr_bitfields	dw	0x0093
+	.data_16_descr_bits		dw	GDT_DESCR_IS_ACCESSED | GDT_DESCR_TYPE_DATA_RW | GDT_DESCR_IS_MEMORY | GDT_DESCR_IS_PRESENT
 	.data_16_descr_base_24_31	db	0
 .end:
 .size			equ	.end - bootstrap_gdt
-.CODE_64_SEL	equ	.code_64_descr - bootstrap_gdt
-.DATA_64_SEL	equ	.data_64_descr - bootstrap_gdt
-.CODE_32_SEL	equ	.code_32_descr - bootstrap_gdt
-.DATA_32_SEL	equ	.data_32_descr - bootstrap_gdt
-.CODE_16_SEL	equ	.code_16_descr - bootstrap_gdt
-.DATA_16_SEL	equ	.data_16_descr - bootstrap_gdt
+.CODE_64_SEL		equ	.code_64_descr - bootstrap_gdt
+.DATA_64_SEL		equ	.data_64_descr - bootstrap_gdt
+.CODE_32_SEL		equ	.code_32_descr - bootstrap_gdt
+.DATA_32_SEL		equ	.data_32_descr - bootstrap_gdt
+.CODE_16_SEL		equ	.code_16_descr - bootstrap_gdt
+.DATA_16_SEL		equ	.data_16_descr - bootstrap_gdt
