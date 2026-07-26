@@ -37,4 +37,4 @@ PxE_D1_HIGH_ADDR_SHIFT		equ 32
 PTE_PAGE_DIRTY_BIT		equ 1 << 6
 PTE_PAGE_IS_GLOBAL_BIT		equ 1 << 8
 
-%endif  ; __X86_BITS__INC__
+%endif	; __X86_BITS__INC__

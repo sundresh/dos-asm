@@ -6,4 +6,4 @@ BIOS_A20_AH		equ	0x24
 BIOS_A20_ENABLE_AL	equ	0x01
 BIOS_A20_DISABLE_AL	equ	0x02
 
-%endif
+%endif	; __A20__INC__

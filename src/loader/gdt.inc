@@ -1,3 +1,6 @@
+%ifndef __GDT__INC__
+%define __GDT__INC__
+
 struc gdt_descriptor
 	.limit_0_15	resw	1
 	.base_0_15	resw	1
@@ -26,3 +29,5 @@ GDT_DESCR_AVL				equ	0x1000
 GDT_DESCR_IS_CODE_64			equ	0x2000
 GDT_DESCR_IS_32_BIT			equ	0x4000
 GDT_DESCR_IS_LIMIT_TIMES_4K		equ	0x8000
+
+%endif	; __GDT__INC__
