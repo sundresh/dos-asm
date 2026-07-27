@@ -1,4 +1,6 @@
-%include "x86bits.inc"
+%include "cr_bits.inc"
+%include "gdt_bits.inc"
+%include "msr_bits.inc"
 
 section .text
 bits 16
@@ -109,8 +111,6 @@ bits 16
 	add	sp, 6
 	pop	ebx
 	ret
-
-%include "gdt.inc"
 
 section .data
 align 8

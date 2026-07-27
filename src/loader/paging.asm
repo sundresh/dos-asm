@@ -1,4 +1,4 @@
-%include "x86bits.inc"
+%include "pagebits.inc"
 
 BOOTSTRAP_PML4_OFFSET	equ	0
 BOOTSTRAP_PML4_SIZE	equ	0x1000
