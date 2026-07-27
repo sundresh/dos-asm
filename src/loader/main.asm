@@ -8,6 +8,8 @@ main:
 	int	BIOS_A20_INT
 	; Load address_range_descriptors
 	call	load_address_range_descriptors
+	; Load file
+	call	load_file_on_cmdline_at_1MB
 	; Call main64 with num_address_range_descriptors and address_range_descriptors as args.
 	call	call_main64
 	; Disable the A20 address line
@@ -17,6 +19,9 @@ main:
 	int	0x21
 
 %include "a20.inc"
+%include "unreal_mode.asm"
+%include "cli_args.asm"
+%include "loadhigh.asm"
 %include "smap.asm"
 %include "longmode.asm"
 %include "paging.asm"
