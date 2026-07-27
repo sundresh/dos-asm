@@ -340,7 +340,7 @@ enable_paging:
 	mov	eax, cr4
 	or	eax, CR4_PSE_BIT | CR4_PGE_BIT | CR4_PAE_BIT
 	mov	cr4, eax
-	; Load PML4 into CR3, which then caches the four PDPTEs
+	; Load PML4 into CR3
 	mov	eax, page_map_level_4_table
 	mov	cr3, eax
 	; Enable paging

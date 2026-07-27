@@ -22,6 +22,8 @@ MSR_IA32_EFER_LMA_BIT		equ 1 << 10	; LMA = Long Mode Active
 MSR_IA32_EFER_NXE_BIT		equ 1 << 10	; NXE = No-eXecute bit Enabled
 
 ; Page [Map Level 4/Directory Pointer Table/Directory/Table] Entry bits
+PxE_32_SIZE			equ 4		; i386 Page [...] Entry size is 4 bytes = 32 bits
+PxE_64_SIZE			equ 8		; x86-64 Page [...] Entry size is 8 bytes = 64 bits
 PxE_PRESENT_BIT			equ 1 << 0
 PxE_WRITABLE_BIT		equ 1 << 1
 PxE_USER_BIT			equ 1 << 2	; At least one page is user-accessible

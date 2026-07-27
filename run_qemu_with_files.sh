@@ -14,4 +14,5 @@ mformat -i "${TMP_FLOPPY_PATH}" -f 1440 ::
 mcopy -i "${TMP_FLOPPY_PATH}" "$@" ::
 mdir -i "${TMP_FLOPPY_PATH}" ::
 
-qemu-system-x86_64 -hda ~/Documents/VM/freedos.qcow2 -fda "${TMP_FLOPPY_PATH}" -boot c -enable-kvm -nic none
+# Optional: -d int,cpu_reset,mmu
+qemu-system-x86_64 -cpu max -hda ~/Documents/VM/freedos.qcow2 -fda "${TMP_FLOPPY_PATH}" -boot c -nic none -enable-kvm

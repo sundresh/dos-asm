@@ -2,7 +2,7 @@
 
 section .text
 bits 16
-call_main32:
+call_main64:
 	push	ebx
 	sub	sp, 6
 	cli
@@ -15,7 +15,6 @@ call_main32:
 	shr	eax, 16
 	mov	[bootstrap_gdt.code_16_descr_base_0_15], bx
 	mov	[bootstrap_gdt.code_16_descr_base_16_23], al
-	mov	eax, ebx
 	mov	[bootstrap_gdt.data_16_descr_base_0_15], bx
 	mov	[bootstrap_gdt.data_16_descr_base_16_23], al
 	; Load GDT
@@ -24,18 +23,27 @@ call_main32:
 	mov	[esp], word bootstrap_gdt.size
 	mov	[esp + 2], eax
 	lgdt	[esp]
-	; Enable long mode (doesn't go into effect until paging is enabled)
+	; Load PML4
+	call	load_pml4
+	; Enable long mode (doesn't go into effect until protected mode & paging are enabled)
 	mov	ecx, MSR_IA32_EFER_ID
 	rdmsr
 	or	eax, MSR_IA32_EFER_LME_BIT
 	wrmsr
-	; TODO: Set up bootstrap page table
-	; Enable protected mode
+	; Enable protected mode & paging
 	mov	eax, cr0
-	or	eax, 1
+	or	eax, CR0_PE_BIT | CR0_PG_BIT
 	mov	cr0, eax
+	; Load 64-bit code segment descriptor
+	mov	eax, ebx
+	add	eax, .begin64
+	mov	[esp], eax
+	mov	[esp+4], bootstrap_gdt.CODE_64_SEL
+	jmp	dword far [esp]
+bits 64
+.begin64:
 	; Load data segment descriptors
-	mov	ax, bootstrap_gdt.DATA_32_SEL
+	mov	ax, bootstrap_gdt.DATA_64_SEL
 	mov	ds, ax
 	mov	es, ax
 	mov	fs, ax
@@ -43,17 +51,14 @@ call_main32:
 	mov	ss, ax
 	; Update stack pointer
 	add	esp, ebx
-	; Load code segment descriptor
-	mov	eax, ebx
-	add	eax, .begin32
-	mov	[esp], eax
-	mov	[esp+4], bootstrap_gdt.CODE_32_SEL
+	; Call main64
+	call	main64
+	; Restore code segment descriptor
+	mov	[esp], dword .resume16
+	mov	[esp+4], bootstrap_gdt.CODE_16_SEL
 	jmp	dword far [esp]
-bits 32
-.begin32:
-	; Call main32
-	; TODO: call main64 instead, with a bootstrap 4-level page table
-	call	main32
+bits 16
+.resume16:
 	; Restore data segment descriptors
 	mov	ax, bootstrap_gdt.DATA_16_SEL
 	mov	ds, ax
@@ -63,16 +68,13 @@ bits 32
 	mov	ss, ax
 	; Restore stack pointer
 	sub	esp, ebx
-	; Restore code segment descriptor
-	mov	[esp], dword .resume16
-	mov	[esp+4], bootstrap_gdt.CODE_16_SEL
-	jmp	dword far [esp]
-bits 16
-.resume16:
 	; Disable protected mode
 	mov	eax, cr0
-	and	eax, ~1
+	and	eax, ~(CR0_PE_BIT | CR0_PG_BIT)
 	mov	cr0, eax
+	; Unload reference to PML4
+	xor	eax, eax
+	mov	cr3, eax
 	; Disable long mode (affects what happens the next time paging is enabled)
 	mov	ecx, MSR_IA32_EFER_ID
 	rdmsr
