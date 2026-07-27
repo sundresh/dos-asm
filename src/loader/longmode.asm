@@ -3,6 +3,10 @@
 section .text
 bits 16
 call_main64:
+	; Enters long mode with a bootstrap GDT and a bootstrap PML4, calls main64 (with interrupts
+	; disabled), and then returns to real mode.
+	; Args: none
+	; Returns: none
 	push	ebx
 	sub	sp, 6
 	cli
@@ -24,7 +28,7 @@ call_main64:
 	mov	[esp + 2], eax
 	lgdt	[esp]
 	; Load PML4
-	call	load_pml4
+	call	load_bootstrap_pml4
 	; Enable long mode (doesn't go into effect until protected mode & paging are enabled)
 	mov	ecx, MSR_IA32_EFER_ID
 	rdmsr
@@ -51,7 +55,10 @@ bits 64
 	mov	ss, ax
 	; Update stack pointer
 	add	esp, ebx
-	; Call main64
+	; Call main64(eax = *num_address_range_descriptors, edx = address_range_descriptors)
+	mov	eax, [ebx + num_address_range_descriptors]
+	mov	edx, ebx
+	add	edx, address_range_descriptors
 	call	main64
 	; Restore code segment descriptor
 	mov	[esp], dword .resume16

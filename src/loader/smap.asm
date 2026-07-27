@@ -20,6 +20,10 @@ endstruc
 section .text
 bits 16
 load_address_range_descriptors:
+	; Load up to MAX_NUM_ADDRESS_RANGE_DESCRIPTORS into [address_range_descriptors],
+	; updating [num_address_range_descriptors].
+	; Args: none
+	; Returns: none
 	push	eax
 	push	ebx
 	push	ecx
