@@ -16,5 +16,7 @@ main64:
 	cmp	eax, ecx
 .loop:
 	jne	.loop
+	mov	eax, 0xb8000
+	mov	[eax], dword 'Hoio'
 
 	ret

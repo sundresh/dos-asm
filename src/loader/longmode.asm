@@ -59,7 +59,8 @@ bits 64
 	mov	eax, [ebx + num_address_range_descriptors]
 	mov	edx, ebx
 	add	edx, address_range_descriptors
-	call	main64
+	mov	rcx, main64
+	call	rcx
 	; Restore code segment descriptor
 	mov	[esp], dword .resume16
 	mov	[esp+4], bootstrap_gdt.CODE_16_SEL

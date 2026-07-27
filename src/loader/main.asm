@@ -18,6 +18,8 @@ main:
 	xor	ah, ah
 	int	0x21
 
+main64	equ	file_contents_buf
+
 %include "a20.inc"
 %include "unreal_mode.asm"
 %include "cli_args.asm"
@@ -25,7 +27,6 @@ main:
 %include "smap.asm"
 %include "longmode.asm"
 %include "paging.asm"
-%include "main64.asm"
 
 section .bss
 end_of_bss:	; paging.asm dynamically locates data at a 4kB-aligned address after .bss

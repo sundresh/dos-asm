@@ -1,5 +1,7 @@
 *~
 *.com
 *.COM
+*.krn
+*.KRN
 *.o
 target/
