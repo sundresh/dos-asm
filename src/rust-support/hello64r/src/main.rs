@@ -2,6 +2,7 @@
 #![no_main]
 
 use core::panic::PanicInfo;
+use itoa;
 
 unsafe extern "C" {
     static _text_start: u8;
@@ -41,8 +42,23 @@ pub extern "C" fn _start(num_address_range_descriptors: usize, address_range_des
         zero_bss();
     }
     let tag = unsafe { *address_range_descriptors }.tag;
+    let base_addr = unsafe { *address_range_descriptors }.base_addr;
+    let length = unsafe { *address_range_descriptors }.length;
     if tag == AddressRangeType::Memory {
         print_string("Hello from x86-64 Rust code!");
+        let mut buffer = itoa::Buffer::new();
+        unsafe { CURSOR_POSITION = 80 };
+        print_string("The number of AddressRangeDescriptors is: ");
+        print_string(buffer.format(num_address_range_descriptors));
+        print_string(" ");
+        unsafe { CURSOR_POSITION = 160 };
+        print_string("The first AddressRangeDescriptor is: ");
+        print_string(buffer.format(base_addr));
+        print_string(" ");
+        print_string(buffer.format(length));
+        print_string(" ");
+        print_string(buffer.format(tag as u32));
+        print_string(" ");
     } else {
         print_string("Error");
     }
@@ -55,6 +71,8 @@ unsafe fn zero_bss() {
     core::ptr::write_bytes(start, 0, len);
 }
 
+static mut CURSOR_POSITION: usize = 0;
+
 fn get_text_mode_video_buffer() -> &'static mut [u8] {
     unsafe {
         core::slice::from_raw_parts_mut(0xb8000 as *mut u8, 80*25*2)
@@ -63,11 +81,10 @@ fn get_text_mode_video_buffer() -> &'static mut [u8] {
 
 fn print_string(s: &str) {
     let text_mode_video_buffer = get_text_mode_video_buffer();
-    let mut index: usize = 0;
     for c in s.bytes() {
-        text_mode_video_buffer[index] = c;
-        text_mode_video_buffer[index+1] = 0x1b;
-        index += 2;
+        text_mode_video_buffer[unsafe { CURSOR_POSITION*2 } % (80*25*2)] = c;
+        text_mode_video_buffer[unsafe { CURSOR_POSITION*2 + 1 } % (80*25*2)] = 0x1b;
+        unsafe { CURSOR_POSITION = (CURSOR_POSITION + 1) % (80 * 25) };
     }
 }
 

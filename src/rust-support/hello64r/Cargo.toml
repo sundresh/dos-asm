@@ -12,3 +12,4 @@ opt-level = 3
 panic = "abort"
 
 [dependencies]
+itoa = "1.0.18"
