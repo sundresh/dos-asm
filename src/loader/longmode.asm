@@ -58,11 +58,17 @@ bits 64
 	; Update stack pointer
 	add	esp, ebx
 	; Call main64(eax = *num_address_range_descriptors, edx = address_range_descriptors)
-	mov	eax, [ebx + num_address_range_descriptors]
-	mov	edx, ebx
-	add	edx, address_range_descriptors
+	push	rbx
+	push	rdi
+	push	rsi
+	mov	edi, [ebx + num_address_range_descriptors]
+	mov	esi, ebx
+	add	esi, address_range_descriptors
 	mov	rcx, main64
 	call	rcx
+	pop	rsi
+	pop	rdi
+	pop	rbx
 	; Restore code segment descriptor
 	mov	[esp], dword .resume16
 	mov	[esp+4], bootstrap_gdt.CODE_16_SEL

@@ -40,12 +40,12 @@ pub extern "C" fn _start(num_address_range_descriptors: usize, address_range_des
     unsafe {
         zero_bss();
     }
-    //let tag = unsafe { *address_range_descriptors }.tag;
-    //if tag == AddressRangeType::Memory {
+    let tag = unsafe { *address_range_descriptors }.tag;
+    if tag == AddressRangeType::Memory {
         print_string("Hello from x86-64 Rust code!");
-    //} else {
-    //    print_string("Error");
-    //}
+    } else {
+        print_string("Error");
+    }
 }
 
 unsafe fn zero_bss() {
